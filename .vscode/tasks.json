@@ -110,9 +110,10 @@
 			"type": "pickString",
 			"description": "Select openFrameworks app subproject to build/run",
 			"options": [
-				"template"
+				"template",
+				"scarf"
 			],
-			"default": "template"
+			"default": "scarf"
 		}
 	]
 }

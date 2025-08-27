@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<palettes>
+	<palette name="Pink">
+		<color r="202" g="49" b="98" />
+		<color r="202" g="118" b="154" />
+		<color r="187" g="141" b="159" />
+	</palette>
+	<palette name="Green">
+		<color r="14" g="96" b="82" />
+		<color r="94" g="142" b="80" />
+		<color r="168" g="172" b="158" />
+	</palette>
+</palettes>
+<Controls>
+	<Palette_Index>1</Palette_Index>
+	<All_Palettes>
+		<Pink>
+			<Color_0>202, 49, 98, 255</Color_0>
+			<Color_1>202, 118, 154, 255</Color_1>
+			<Color_2>187, 141, 159, 255</Color_2>
+		</Pink>
+		<Green>
+			<Color_0>14, 96, 82, 255</Color_0>
+			<Color_1>94, 142, 80, 255</Color_1>
+			<Color_2>168, 172, 158, 255</Color_2>
+		</Green>
+	</All_Palettes>
+</Controls>

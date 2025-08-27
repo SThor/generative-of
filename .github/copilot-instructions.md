@@ -17,6 +17,7 @@ Build/Run
 - You have a bit of trouble running the build & run tasks, so simply leave it to the user once you've done all the requested changes.
 - If the task prompts for a subproject, choose the intended folder.
 - If build errors reference generated objects, clean via “Clean ALL” and rebuild.
+ - Important: The “Build RELEASE” task can take a long time, and I shouldn't consider it finished when reading "Done!". Either wait significantly longer for it to complete, or avoid running it and let the user build.
 
 Documentation
 - Keep README structure in sync with actual folders.
