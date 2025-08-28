@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<Blur_Parameters>
+	<Background>255, 255, 255, 255</Background>
+	<Shape_Size>185</Shape_Size>
+	<Speed>0.8</Speed>
+	<Oscillation_Amplitude>325</Oscillation_Amplitude>
+	<Oscillation_Speed>0.02</Oscillation_Speed>
+	<Hue_Speed>0.3</Hue_Speed>
+	<Blur_Amount>0.999</Blur_Amount>
+	<Show_UI>1</Show_UI>
+	<Auto_Save_Final_Frame>1</Auto_Save_Final_Frame>
+	<Amplitude_Threshold>0.9</Amplitude_Threshold>
+	<Animation_End_Threshold>0.85</Animation_End_Threshold>
+	<Color_Saturation>48.45</Color_Saturation>
+	<Color_Brightness>255</Color_Brightness>
+	<Corner_Radius_Start>0.5</Corner_Radius_Start>
+	<Corner_Radius_End>0.1</Corner_Radius_End>
+</Blur_Parameters>

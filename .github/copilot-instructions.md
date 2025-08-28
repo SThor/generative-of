@@ -4,7 +4,11 @@ Verify that all previous steps have been completed successfully and you have mar
 Develop a plan to modify codebase according to user requirements.
 Apply modifications using appropriate tools and user-provided references.
 
-Repo-specific Copilot instructions:
+Build/Run
+- **NEVER attempt to build or run tasks yourself!** Always leave building/running to the user once you've completed all requested code changes.
+- Only make code edits, fixes, and file modifications - the user handles all compilation and execution.
+- If the user reports build errors, analyze and fix the code issues, but don't attempt to build again.
+- Suggest "Clean ALL" and rebuild if build errors reference generated objects, but let the user execute it.
 
 Checklist
 - Confirm this is an openFrameworks workspace with multiple app subfolders (e.g., template/).
@@ -12,11 +16,7 @@ Checklist
 - For a new app: duplicate the existing template app folder (e.g., template/), rename it.
 - Keep changes scoped to the selected subproject; never move or rename the openFrameworks core libs.
 - When editing, avoid large refactors unless requested. Prefer minimal, focused patches.
-
-Build/Run
-- You have a bit of trouble running the build & run tasks, so simply leave it to the user once you've done all the requested changes.
-- If the task prompts for a subproject, choose the intended folder.
-- If build errors reference generated objects, clean via “Clean ALL” and rebuild.
+- **IMPORTANT**: For shader projects, always ensure `settings.setGLVersion(3, 2);` is set in main.cpp for proper GLSL #version 150 support.
 
 Documentation
 - Keep README structure in sync with actual folders.
