@@ -11,7 +11,9 @@ Circle::Circle(ofVec2f * position, float radius, int vertexCount, float wiggleFa
 	update(0.0f);
 }
 
-Circle::~Circle() = default;
+Circle::~Circle() {
+	delete mCirclePath;
+}
 
 void Circle::draw() const {
 	ofPushMatrix();
