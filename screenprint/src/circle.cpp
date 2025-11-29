@@ -25,9 +25,16 @@ void Circle::draw() const {
 void Circle::update(float timeElapsed) {
 	mCirclePath->clear();
 	float wiggle = 0.2f * timeElapsed;
+	
+	// Use position to create unique noise offset for each circle
+	float noiseOffsetX = mPosition->x * 0.01f; // Scale down position for noise
+	float noiseOffsetY = mPosition->y * 0.01f;
+	
 	for (int i = 0; i <= mVertexCount; ++i) {
 		float angle = ofMap(i, 0, mVertexCount, 0, TWO_PI);
-		float noiseValue = ofNoise(cos(angle), sin(angle), wiggle);
+		
+		// Incorporate position into noise calculation for unique variation per circle
+		float noiseValue = ofNoise(cos(angle) + noiseOffsetX, sin(angle) + noiseOffsetY, wiggle);
 		float radiusVariation = ofMap(noiseValue, 0, 1, -mRadius * mWiggleFactor, mRadius * mWiggleFactor);
 		float currentRadius = mRadius + radiusVariation;
 

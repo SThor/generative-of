@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ofMain.h"
+#include <vector>
 
 class Circle; 
 
@@ -10,6 +11,7 @@ public:
 	void setup();
 	void update();
 	void draw();
+	~ofApp();
 
 	void keyPressed(int key);
 	void keyReleased(int key);
@@ -29,5 +31,13 @@ private:
 	bool tempSaved = false;
 
 	void saveTimestamped();
-	Circle * circle;
+	void repositionCircles(); // Helper function to recalculate grid positions
+	
+	std::vector<Circle*> mCircles;
+	
+	// Grid configuration
+	int mGridCols = 6;
+	int mGridRows = 4;
+	float mMarginX = 80.0f;
+	float mMarginY = 60.0f;
 };
