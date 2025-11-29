@@ -4,10 +4,9 @@
 #include <ofMain.h>
 
 Circle::Circle(ofVec2f * position, float radius, int vertexCount, float wiggleFactor)
-	: Shape(position)
+	: Shape(position, wiggleFactor)
 	, mRadius(radius)
 	, mVertexCount(vertexCount)
-	, mWiggleFactor(wiggleFactor)
 	, mCirclePath(new ofPath()) {
 	update(0.0f);
 }
@@ -46,12 +45,4 @@ void Circle::setRadius(float r) {
 
 float Circle::getRadius() const {
 	return mRadius;
-}
-
-void Circle::setWiggleFactor(float wf) {
-	mWiggleFactor = wf;
-}
-
-float Circle::getWiggleFactor() const {
-	return mWiggleFactor;
 }

@@ -15,12 +15,8 @@ public:
 	void setRadius(float r);
 	float getRadius() const;
 
-	void setWiggleFactor(float wf);
-	float getWiggleFactor() const;
-
 private:
 	float mRadius;
-	float mWiggleFactor;
 	int mVertexCount;
 
 	ofPath * mCirclePath;
