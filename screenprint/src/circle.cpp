@@ -3,11 +3,11 @@
 #include <cmath>
 #include <ofMain.h>
 
-Circle::Circle(ofVec2f * position, float radius, int vertexCount, float wiggleFactor)
-	: Shape(position, wiggleFactor)
+Circle::Circle(ofVec2f * position, float radius, int vertexCount, ofColor color, float wiggleFactor)
+	: Shape(position, color, wiggleFactor)
 	, mRadius(radius)
 	, mVertexCount(vertexCount)
-	, mCirclePath(new ofPath()) {
+	, mCirclePath(new ofPath()) { // Default color white
 	update(0.0f);
 }
 
@@ -18,6 +18,7 @@ Circle::~Circle() {
 void Circle::draw() const {
 	ofPushMatrix();
 	ofTranslate(mPosition->x, mPosition->y);
+    mCirclePath->setFillColor(mColor);
 	mCirclePath->draw();
 	ofPopMatrix();
 }

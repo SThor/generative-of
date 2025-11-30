@@ -36,8 +36,10 @@ private:
 	std::vector<Circle*> mCircles;
 	
 	// Grid configuration
-	int mGridCols = 6;
-	int mGridRows = 4;
-	float mMarginX = 80.0f;
-	float mMarginY = 60.0f;
+	int mGridCols = 4;
+	int mGridRows = 6;
+	float mMarginX = 120.0f; // Increased from 80
+	float mMarginY = 100.0f; // Increased from 60
+
+	float mPrintOffset = 10.0f; // Max offset for simulating misregistration
 };
