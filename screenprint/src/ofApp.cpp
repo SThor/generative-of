@@ -3,16 +3,20 @@
 #include "circle.h"
 
 void ofApp::setup() {
-	// Create circles, not positioned yet
-	int total = mGridRows * mGridCols;
-	mCircles.reserve(total);
-	for (int i = 0; i < total; ++i) {
-		Circle * circle = new Circle(new ofVec2f(0, 0), 30.0f, 60, 0.1f);
-		mCircles.push_back(circle);
+	// Load shader first
+	if(ofIsGLProgrammableRenderer()){
+		ofLogNotice("ofApp") << "Using GL Programmable Renderer (GL3)";
+	}else{
+		ofLogNotice("ofApp") << "Using Fixed Function Pipeline Renderer (GL2)";
 	}
 
-	// Position them correctly
-	repositionCircles();
+	mShader.load("shaders/shader");
+	
+	// Create circles using the recreateCircles function
+	recreateCircles();
+	
+	// Generate initial random offsets
+	generateNewOffsets();
 }
 
 void ofApp::update() {
@@ -22,14 +26,21 @@ void ofApp::update() {
 }
 
 void ofApp::draw() {
+	mShader.begin();
+	
+	// Pass uniforms to shader
+	mShader.setUniform2f("resolution", ofGetWidth(), ofGetHeight());
+	mShader.setUniform1f("intensity", mNoiseIntensity);
+	mShader.setUniform1i("blendMode", mBlendMode);
+	
 	// Off-white background
 	ofBackground(248, 246, 242); // Warm off-white background
 
 	// Enable blending for color mixing
 	ofEnableBlendMode(OF_BLENDMODE_MULTIPLY);
 
-	// Random hue shift applied to all colors (keeps palette coherent)
-	float hueShift = ofRandom(0, 360);
+	// Use fixed hue shift applied to all colors (keeps palette coherent)
+	float hueShift = mHueShift;
 
 	// Three printing passes with HSB colors (120° apart, plus random shift)
 	ofColor colors[] = {
@@ -38,17 +49,17 @@ void ofApp::draw() {
 		ofColor::fromHsb(ofMap(fmod(240 + hueShift, 360), 0, 360, 0, 255), 255, 255)    // Third color (+240°)
 	};
 
-	for (const auto & color : colors) {
-		// Random offset for each color pass
-		float offsetX = ofRandom(-mPrintOffset, mPrintOffset);
-		float offsetY = ofRandom(-mPrintOffset, mPrintOffset);
-		float rotation = ofRandom(-1.0f, 1.0f);
+	for (int i = 0; i < 3; i++) {
+		// Use fixed offset for each color pass
+		float offsetX = mPrintOffsets[i].x;
+		float offsetY = mPrintOffsets[i].y;
+		float rotation = mPrintOffsets[i].rotation;
 		ofFill();
 		ofPushMatrix();
 		ofTranslate(offsetX, offsetY);
 		ofRotateDeg(rotation);
 		for (Circle * circle : mCircles) {
-			circle->setColor(color);
+			circle->setColor(colors[i]);
 			circle->draw();
 		}
 		ofPopMatrix();
@@ -56,6 +67,44 @@ void ofApp::draw() {
 
 	// Restore normal blending
 	ofDisableBlendMode();
+	
+	mShader.end();
+
+	// depending on showInfo, display the variables at the top in small type
+	if (showInfo) {
+		ofPushStyle();
+		ofSetColor(0);
+		int infoX = 10;
+		int infoY = 20;
+		int lineH = 14;
+
+		ofDrawBitmapString("showInfo: " + std::string(showInfo ? "true" : "false"), infoX, infoY);
+		ofDrawBitmapString("tempImagePath: " + tempImagePath, infoX, infoY += lineH);
+		ofDrawBitmapString("tempSaved: " + std::string(tempSaved ? "true" : "false"), infoX, infoY += lineH);
+
+		ofDrawBitmapString("mCircles.size: " + ofToString(mCircles.size()), infoX, infoY += lineH);
+
+		ofDrawBitmapString("mShader: " + std::string(mShader.isLoaded() ? "loaded" : "not loaded"), infoX, infoY += lineH);
+
+		ofDrawBitmapString("mNoiseIntensity: " + ofToString(mNoiseIntensity, 2), infoX, infoY += lineH);
+		ofDrawBitmapString("mBlendMode: " + ofToString(mBlendMode), infoX, infoY += lineH);
+
+		for (int i = 0; i < 3; ++i) {
+			ofDrawBitmapString("mPrintOffsets[" + ofToString(i) + "]: x=" + ofToString(mPrintOffsets[i].x, 2)
+				+ " y=" + ofToString(mPrintOffsets[i].y, 2)
+				+ " rot=" + ofToString(mPrintOffsets[i].rotation, 2),
+				infoX, infoY += lineH);
+		}
+
+		ofDrawBitmapString("mHueShift: " + ofToString(mHueShift, 2), infoX, infoY += lineH);
+		ofDrawBitmapString("mGridCols: " + ofToString(mGridCols), infoX, infoY += lineH);
+		ofDrawBitmapString("mGridRows: " + ofToString(mGridRows), infoX, infoY += lineH);
+		ofDrawBitmapString("mMarginX: " + ofToString(mMarginX, 2), infoX, infoY += lineH);
+		ofDrawBitmapString("mMarginY: " + ofToString(mMarginY, 2), infoX, infoY += lineH);
+		ofDrawBitmapString("mPrintOffset: " + ofToString(mPrintOffset, 2), infoX, infoY += lineH);
+
+		ofPopStyle();
+	}
 }
 
 ofApp::~ofApp() {
@@ -78,7 +127,80 @@ void ofApp::keyPressed(int key) {
 		break;
 	case 's':
 	case 'S':
+		ofLogNotice("ofApp") << "Saving timestamped screenshot.";
 		saveTimestamped();
+		break;
+	case '+':
+	case '=':
+		mNoiseIntensity = ofClamp(mNoiseIntensity + 0.1f, 0.0f, 1.0f);
+		ofLogNotice("ofApp") << "Noise intensity: " << mNoiseIntensity;
+		break;
+	case '-':
+	case '_':
+		mNoiseIntensity = ofClamp(mNoiseIntensity - 0.1f, 0.0f, 1.0f);
+		ofLogNotice("ofApp") << "Noise intensity: " << mNoiseIntensity;
+		break;
+	case '0':
+	case 'à':
+		mNoiseIntensity = 0.0f;
+		ofLogNotice("ofApp") << "Noise intensity: " << mNoiseIntensity;
+		break;
+	case '1':
+	case '&':
+		mNoiseIntensity = 1.0f;
+		ofLogNotice("ofApp") << "Noise intensity: " << mNoiseIntensity;
+		break;
+	case OF_KEY_F1:
+		mBlendMode = 0;
+		ofLogNotice("ofApp") << "Blend mode: Addition";
+		break;
+	case OF_KEY_F2:
+		mBlendMode = 1;
+		ofLogNotice("ofApp") << "Blend mode: Screen";
+		break;
+	case OF_KEY_F3:
+		mBlendMode = 2;
+		ofLogNotice("ofApp") << "Blend mode: Overlay";
+		break;
+	case OF_KEY_F4:
+		mBlendMode = 3;
+		ofLogNotice("ofApp") << "Blend mode: Soft Light";
+		break;
+	case OF_KEY_F5:
+		mBlendMode = 4;
+		ofLogNotice("ofApp") << "Blend mode: Lighten-Only";
+		break;
+	case ' ': // Spacebar
+		generateNewOffsets();
+		ofLogNotice("ofApp") << "Generated new print offsets";
+		break;
+	case OF_KEY_SHIFT: // Increase circle diameter
+		mCircleDiameter = ofClamp(mCircleDiameter + 5.0f, 10.0f, 1000.0f);
+		recreateCircles();		
+		break;
+	case OF_KEY_CONTROL: // Decrease circle diameter
+		mCircleDiameter = ofClamp(mCircleDiameter - 5.0f, 10.0f, 1000.0f);
+		recreateCircles();		
+		break;
+	case OF_KEY_UP: // Increase columns
+		mGridCols = ofClamp(mGridCols + 1, 1, 10);
+		recreateCircles();
+		ofLogNotice("ofApp") << "Grid: " << mGridCols << "x" << mGridRows;
+		break;
+	case OF_KEY_DOWN: // Decrease columns
+		mGridCols = ofClamp(mGridCols - 1, 1, 10);
+		recreateCircles();
+		ofLogNotice("ofApp") << "Grid: " << mGridCols << "x" << mGridRows;
+		break;
+	case OF_KEY_RIGHT: // Increase rows
+		mGridRows = ofClamp(mGridRows + 1, 1, 15);
+		recreateCircles();
+		ofLogNotice("ofApp") << "Grid: " << mGridCols << "x" << mGridRows;
+		break;
+	case OF_KEY_LEFT: // Decrease rows
+		mGridRows = ofClamp(mGridRows - 1, 1, 15);
+		recreateCircles();
+		ofLogNotice("ofApp") << "Grid: " << mGridCols << "x" << mGridRows;
 		break;
 	default:
 		break;
@@ -96,20 +218,23 @@ void ofApp::mouseExited(int x, int y) { }
 void ofApp::windowResized(int w, int h) {
 	tempSaved = false;
 	repositionCircles(); // Reposition circles when window is resized
+	
+	// Reallocate shader with new dimensions
+	// mShader.allocate(w, h);
 }
 void ofApp::gotMessage(ofMessage msg) { }
 
 void ofApp::repositionCircles() {
-	// Calculate spacing between circles
-	float spacingX = (ofGetWidth() - 2 * mMarginX) / (mGridCols - 1);
-	float spacingY = (ofGetHeight() - 2 * mMarginY) / (mGridRows - 1);
+	// Calculate spacing between circles, handling single row/column cases
+	float spacingX = (mGridCols > 1) ? (ofGetWidth() - 2 * mMarginX) / (mGridCols - 1) : 0;
+	float spacingY = (mGridRows > 1) ? (ofGetHeight() - 2 * mMarginY) / (mGridRows - 1) : 0;
 
 	int index = 0;
 	for (int row = 0; row < mGridRows; row++) {
 		for (int col = 0; col < mGridCols; col++) {
 			if (index < mCircles.size()) {
-				float x = mMarginX + col * spacingX;
-				float y = mMarginY + row * spacingY;
+				float x = (mGridCols > 1) ? mMarginX + col * spacingX : ofGetWidth() / 2;
+				float y = (mGridRows > 1) ? mMarginY + row * spacingY : ofGetHeight() / 2;
 
 				// Update the position of the existing circle
 				mCircles[index]->setPosition(x, y);
@@ -130,4 +255,35 @@ void ofApp::saveTimestamped() {
 	std::strftime(buf, sizeof(buf), "%Y-%m-%d-%H-%M-%S.png", tmPtr);
 	ofFile::copyFromTo(tempImagePath, buf, true, true);
 	tempSaved = false;
+}
+
+void ofApp::generateNewOffsets() {
+	// Generate random offset values for each color pass
+	for (int i = 0; i < 3; i++) {
+		mPrintOffsets[i].x = ofRandom(-mPrintOffset, mPrintOffset);
+		mPrintOffsets[i].y = ofRandom(-mPrintOffset, mPrintOffset);
+		mPrintOffsets[i].rotation = ofRandom(-1.0f, 1.0f);
+	}
+	
+	// Generate new random hue shift
+	mHueShift = ofRandom(0, 360);
+}
+
+void ofApp::recreateCircles() {
+	// Clean up existing circles
+	for (Circle * circle : mCircles) {
+		delete circle;
+	}
+	mCircles.clear();
+	
+	// Create new circles with current parameters
+	int total = mGridRows * mGridCols;
+	mCircles.reserve(total);
+	for (int i = 0; i < total; ++i) {
+		Circle * circle = new Circle(new ofVec2f(0, 0), mCircleDiameter, mCircleDiameter * 2, 0.1f);
+		mCircles.push_back(circle);
+	}
+	
+	// Position them correctly
+	repositionCircles();
 }
