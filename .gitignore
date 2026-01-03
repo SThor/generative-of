@@ -21,8 +21,8 @@
 # ignore generated binaries
 # but not the data folder
 
-/bin/*
-!/bin/data/
+*/bin/*
+!*/bin/data/
 
 # general
 
