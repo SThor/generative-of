@@ -5,7 +5,12 @@
 
 class Circle : public Shape {
 public:
-	Circle(ofVec2f * position, float radius, int vertexCount, ofColor color, float wiggleFactor = 0.1f);
+	Circle(
+		ofVec2f * position,
+		float radius,
+		int vertexCount,
+		ofColor color,
+		float wiggleFactor = 0.1f);
 	~Circle() override;
 
 	// Shape interface

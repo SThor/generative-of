@@ -3,7 +3,8 @@
 #include "ofMain.h"
 #include <vector>
 
-class Circle; 
+class Circle;
+class Stroke;
 
 class ofApp : public ofBaseApp {
 
@@ -11,6 +12,7 @@ public:
 	void setup();
 	void update();
 	void draw();
+	void drawInfo();
 	~ofApp();
 
 	void keyPressed(int key);
@@ -34,8 +36,10 @@ private:
 	void repositionCircles(); // Helper function to recalculate grid positions
 	void generateNewOffsets(); // Generate new random offset values
 	void recreateCircles(); // Recreate circles with new grid/diameter parameters
+	void generateStroke(); // Generate stroke for drawing
 	
 	std::vector<Circle*> mCircles;
+	Stroke* mStroke = nullptr;
 	
 	// Shader stuff
 	ofShader mShader;
@@ -57,4 +61,6 @@ private:
 	float mCircleDiameter = 30.0f; // Circle diameter (was hardcoded as 60 in setup)
 
 	float mPrintOffset = 10.0f; // Max offset for simulating misregistration
+
+	float mWiggleFactor = 0.2f; // Factor controlling stroke wiggle amount
 };

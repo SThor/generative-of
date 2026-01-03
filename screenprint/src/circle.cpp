@@ -1,4 +1,3 @@
-// c:/Users/Paul/dev/open-frameworks/of_v0.12.1_msys2_mingw64_release/apps/generative-of/screenprint/src/circle.cpp
 #include "circle.h"
 #include <cmath>
 #include <ofMain.h>
