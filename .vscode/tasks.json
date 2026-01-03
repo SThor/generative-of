@@ -113,8 +113,9 @@
 				"template",
 				"screenprint",
 				"dithering-patterns",
+				"dithering",
 			],
-			"default": "dithering-patterns"
+			"default": "dithering"
 		}
 	]
 }
