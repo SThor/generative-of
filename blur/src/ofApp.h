@@ -24,9 +24,10 @@ class ofApp : public ofBaseApp{
 		void gotMessage(ofMessage msg);
 
 	private:
-		// Canvas and rendering
+		// Canvas and rendering - Multi-resolution system
 		ofFbo canvas;
 		ofFbo fboBlurOnePass, fboBlurTwoPass;
+		ofFbo highResFBO, medResFBO, lowResFBO; // Multi-resolution layers
 		ofShader blurShaderX, blurShaderY;
 		
 		// Animation state
@@ -35,6 +36,7 @@ class ofApp : public ofBaseApp{
 		unsigned long seed;
 		bool firstFrame;
 		bool animationComplete;
+		int debugLayer; // 0=composite, 1=high, 2=med, 3=low
 		
 		// Parameters with automatic UI
 		ofParameterGroup parameters;
@@ -51,6 +53,17 @@ class ofApp : public ofBaseApp{
 		ofParameter<float> cornerRadiusStart;
 		ofParameter<float> cornerRadiusEnd;
 		ofParameter<float> blurAmount;
+		
+		// Multi-resolution decay parameters
+		ofParameter<float> highToMedDecayStart;
+		ofParameter<float> medToLowDecayStart;
+		ofParameter<float> decayRate;
+		ofParameter<float> verticalDecayMultiplier;
+		ofParameter<float> highResAlpha;
+		ofParameter<float> medResAlpha;
+		ofParameter<float> lowResAlpha;
+		ofParameter<bool> useNearestFiltering;
+		
 		ofParameter<bool> showUI;
 		ofParameter<bool> autoSave;
 		
@@ -64,8 +77,12 @@ class ofApp : public ofBaseApp{
 		
 		// Helper functions
 		void setupCanvas();
+		void updateTextureFiltering(); // Update texture filtering for multi-res FBOs
 		void drawToCanvas();
 		void applyBlur();
+		void applyBlurToFBO(ofFbo& targetFBO); // Apply blur to any specific FBO
+		void applyMultiResolutionDecay(); // New multi-resolution decay system
+		void compositeMultiResolutionLayers(); // Blend all resolution layers
 		void resetAnimation();
 		void saveTempFrame();
 		void saveTimestamped();
