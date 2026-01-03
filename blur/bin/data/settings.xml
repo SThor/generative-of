@@ -6,7 +6,7 @@
 	<Oscillation_Amplitude>325</Oscillation_Amplitude>
 	<Oscillation_Speed>0.02</Oscillation_Speed>
 	<Hue_Speed>0.3</Hue_Speed>
-	<Blur_Amount>0.999</Blur_Amount>
+	<Blur_Amount>0.0793</Blur_Amount>
 	<Show_UI>1</Show_UI>
 	<Auto_Save_Final_Frame>1</Auto_Save_Final_Frame>
 	<Amplitude_Threshold>0.9</Amplitude_Threshold>
@@ -15,4 +15,9 @@
 	<Color_Brightness>255</Color_Brightness>
 	<Corner_Radius_Start>0.5</Corner_Radius_Start>
 	<Corner_Radius_End>0.1</Corner_Radius_End>
+	<Max_Age__frames_>120</Max_Age__frames_>
+	<Age_Blur_Multiplier>2</Age_Blur_Multiplier>
+	<Age_Fade_Rate>0.02</Age_Fade_Rate>
+	<Age_Range_Start__frames_>0</Age_Range_Start__frames_>
+	<Age_Range_End__frames_>60</Age_Range_End__frames_>
 </Blur_Parameters>

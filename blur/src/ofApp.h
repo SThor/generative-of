@@ -29,6 +29,14 @@ class ofApp : public ofBaseApp{
 		ofFbo fboBlurOnePass, fboBlurTwoPass;
 		ofShader blurShaderX, blurShaderY;
 		
+		// Age-based system
+		ofFbo contentFbo;  // FBO1: Content buffer (shapes + trails)
+		ofFbo ageFbo;      // FBO2: Age tracking buffer
+		ofFbo finalFbo;    // FBO3: Final composite with age-based blur
+		ofFbo spreadFbo;   // FBO4: Color spreading intermediate buffer
+		ofShader ageCompositeShader;
+		ofShader ageSpreadShader;
+		
 		// Animation state
 		float yPos;
 		int frameCounter;
@@ -54,6 +62,15 @@ class ofApp : public ofBaseApp{
 		ofParameter<bool> showUI;
 		ofParameter<bool> autoSave;
 		
+		// Age-based blur parameters
+		ofParameter<float> maxAge;
+		ofParameter<float> ageBlurMultiplier;
+		ofParameter<float> ageFadeRate;
+		ofParameter<int> debugFboDisplay;
+		ofParameter<float> ageRangeStart;
+		ofParameter<float> ageRangeEnd;
+		ofParameter<bool> useRelativeAge;
+		
 		// GUI
 		ofxPanel gui;
 		
@@ -71,4 +88,11 @@ class ofApp : public ofBaseApp{
 		void saveTimestamped();
 		void drawInfo();
 		float getThresholdPosition(float threshold); // Convert threshold proportion to pixel position
+		
+		// Age-based system functions
+		void setupAgeFBOs();
+		void drawToContentFbo();
+		void updateAgeFbo();
+		void compositeWithAge();
+		ofColor frameToColor(int frameNumber);
 };
