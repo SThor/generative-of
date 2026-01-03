@@ -144,68 +144,68 @@ void ofApp::keyPressed(int key) {
 		tempSaved = false;
 		break;
 	case 'v':
-	case 'V':
+	case 'V': // Toggle info display
 		showInfo = !showInfo;
 		if (mStroke) {
 			mStroke->setDebug(showInfo);
 		}
 		break;
 	case 's':
-	case 'S':
+	case 'S': // Save timestamped screenshot
 		ofLogNotice("ofApp") << "Saving timestamped screenshot.";
 		saveTimestamped();
 		break;
 	case '+':
-	case '=':
+	case '=': // Increase noise intensity
 		mNoiseIntensity = ofClamp(mNoiseIntensity + 0.1f, 0.0f, 1.0f);
 		ofLogNotice("ofApp") << "Noise intensity: " << mNoiseIntensity;
 		break;
 	case '-':
-	case '_':
+	case '_': // Decrease noise intensity
 		mNoiseIntensity = ofClamp(mNoiseIntensity - 0.1f, 0.0f, 1.0f);
 		ofLogNotice("ofApp") << "Noise intensity: " << mNoiseIntensity;
 		break;
 	case '0':
-	case 'à':
+	case 'à': // Set noise intensity to minimum 0
 		mNoiseIntensity = 0.0f;
 		ofLogNotice("ofApp") << "Noise intensity: " << mNoiseIntensity;
 		break;
 	case '1':
-	case '&':
+	case '&': // Set noise intensity to maximum 1
 		mNoiseIntensity = 1.0f;
 		ofLogNotice("ofApp") << "Noise intensity: " << mNoiseIntensity;
 		break;
 	case 'p':
-	case 'P':
+	case 'P': // Increase wiggle factor
 		mWiggleFactor += 0.1f;
 		ofLogNotice("ofApp") << "Wiggle factor: " << mWiggleFactor;
 		break;
 	case 'm':
-	case 'M':
+	case 'M': // Decrease wiggle factor
 		mWiggleFactor = std::max(0.0f, mWiggleFactor - 0.1f);
 		ofLogNotice("ofApp") << "Wiggle factor: " << mWiggleFactor;
 		break;
-	case OF_KEY_F1:
+	case OF_KEY_F1: // Set blend mode to Addition
 		mBlendMode = 0;
 		ofLogNotice("ofApp") << "Blend mode: Addition";
 		break;
-	case OF_KEY_F2:
+	case OF_KEY_F2: // Set blend mode to Screen
 		mBlendMode = 1;
 		ofLogNotice("ofApp") << "Blend mode: Screen";
 		break;
-	case OF_KEY_F3:
+	case OF_KEY_F3: // Set blend mode to Overlay
 		mBlendMode = 2;
 		ofLogNotice("ofApp") << "Blend mode: Overlay";
 		break;
-	case OF_KEY_F4:
+	case OF_KEY_F4: // Set blend mode to Soft Light
 		mBlendMode = 3;
 		ofLogNotice("ofApp") << "Blend mode: Soft Light";
 		break;
-	case OF_KEY_F5:
+	case OF_KEY_F5: // Set blend mode to Lighten-Only
 		mBlendMode = 4;
 		ofLogNotice("ofApp") << "Blend mode: Lighten-Only";
 		break;
-	case ' ': // Spacebar
+	case ' ': // Spacebar to regenerate offsets and stroke
 		generateNewOffsets();
 		generateStroke(); // Regenerate stroke with new parameters
 		ofLogNotice("ofApp") << "Generated new print offsets and stroke";
