@@ -30,6 +30,15 @@ class ofApp : public ofBaseApp{
 		void saveTimestamped();
 		void saveMatrixImage();
 		
+		// Base matrix patterns
+		struct BaseMatrix {
+			std::string name;
+			std::vector<std::vector<int>> matrix;
+		};
+		std::vector<BaseMatrix> baseMatrices;
+		int currentBaseIndex = 0;
+		void initializeBaseMatrices();
+		
 		// Bayer matrix parameters
 		int matrixSize = 2;           // n for n×n matrix (powers of 2)
 		std::vector<std::vector<int>> bayerMatrix;

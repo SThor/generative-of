@@ -3,6 +3,7 @@
 void ofApp::setup(){
 	ofSetWindowTitle("Bayer Dither Matrix Visualizer");
 	ofBackground(50);
+	initializeBaseMatrices();
 	generateBayerMatrix(matrixSize);
 }
 
@@ -53,6 +54,16 @@ void ofApp::keyPressed(int key){
 				tempSaved = false;
 			}
 			break;
+		case OF_KEY_LEFT:
+			currentBaseIndex = (currentBaseIndex - 1 + baseMatrices.size()) % baseMatrices.size();
+			generateBayerMatrix(matrixSize);
+			tempSaved = false;
+			break;
+		case OF_KEY_RIGHT:
+			currentBaseIndex = (currentBaseIndex + 1) % baseMatrices.size();
+			generateBayerMatrix(matrixSize);
+			tempSaved = false;
+			break;
 		default: break;
 	}
 }
@@ -96,10 +107,21 @@ void ofApp::saveMatrixImage(){
 		}
 	}
 	
-	// Save image with descriptive filename
-	char buf[64];
-	std::snprintf(buf, sizeof(buf), "bayer_matrix_%dx%d.png", 
-			 matrixSize, matrixSize);
+	// Create safe filename from base matrix name
+	std::string baseName = baseMatrices[currentBaseIndex].name;
+	std::string safeBaseName;
+	for(char c : baseName) {
+		if(std::isalnum(c)) {
+			safeBaseName += std::tolower(c);
+		} else if(c == ' ' || c == '(' || c == ')' || c == '-') {
+			safeBaseName += '_';
+		}
+	}
+	
+	// Save image with descriptive filename including base matrix name
+	char buf[128];
+	std::snprintf(buf, sizeof(buf), "%s_%dx%d.png", 
+			 safeBaseName.c_str(), matrixSize, matrixSize);
 	
 	matrixImg.save(buf);
 	ofLogNotice() << "Matrix image saved as: " << buf;
@@ -112,10 +134,14 @@ void ofApp::generateBayerMatrix(int size) {
 		bayerMatrix[i].resize(size);
 	}
 	
-	// Base case: 2x2 matrix
+	// Base case: use selected base matrix
 	if(size == 2) {
-		bayerMatrix[0][0] = 0; bayerMatrix[0][1] = 2;
-		bayerMatrix[1][0] = 3; bayerMatrix[1][1] = 1;
+		const auto& baseMatrix = baseMatrices[currentBaseIndex].matrix;
+		for(int i = 0; i < 2; i++) {
+			for(int j = 0; j < 2; j++) {
+				bayerMatrix[i][j] = baseMatrix[i][j];
+			}
+		}
 		return;
 	}
 	
@@ -147,18 +173,20 @@ void ofApp::generateBayerMatrix(int size) {
 		bayerMatrix[i].resize(size);
 	}
 	
-	// Build the full matrix using the recursive pattern
+	// Build the full matrix using the recursive pattern based on the selected base matrix
+	const auto& baseMatrix = baseMatrices[currentBaseIndex].matrix;
 	for(int i = 0; i < halfSize; i++) {
 		for(int j = 0; j < halfSize; j++) {
 			int baseValue = smallMatrix[i][j] * 4;
-			// Upper-left quadrant: 4*M + 0
-			bayerMatrix[i][j] = baseValue + 0;
-			// Upper-right quadrant: 4*M + 2
-			bayerMatrix[i][j + halfSize] = baseValue + 2;
-			// Lower-left quadrant: 4*M + 3
-			bayerMatrix[i + halfSize][j] = baseValue + 3;
-			// Lower-right quadrant: 4*M + 1
-			bayerMatrix[i + halfSize][j + halfSize] = baseValue + 1;
+			// Use the base matrix pattern to determine quadrant arrangement
+			// Upper-left quadrant: 4*M + baseMatrix[0][0]
+			bayerMatrix[i][j] = baseValue + baseMatrix[0][0];
+			// Upper-right quadrant: 4*M + baseMatrix[0][1]
+			bayerMatrix[i][j + halfSize] = baseValue + baseMatrix[0][1];
+			// Lower-left quadrant: 4*M + baseMatrix[1][0]
+			bayerMatrix[i + halfSize][j] = baseValue + baseMatrix[1][0];
+			// Lower-right quadrant: 4*M + baseMatrix[1][1]
+			bayerMatrix[i + halfSize][j + halfSize] = baseValue + baseMatrix[1][1];
 		}
 	}
 }
@@ -214,10 +242,12 @@ void ofApp::drawInfo() {
 	std::vector<std::string> infoLines;
 	infoLines.push_back("Bayer Matrix Visualizer");
 	infoLines.push_back("");
+	infoLines.push_back("Base Pattern: " + baseMatrices[currentBaseIndex].name);
 	infoLines.push_back("Matrix Size: " + ofToString(matrixSize) + "x" + ofToString(matrixSize));
 	infoLines.push_back("Total Values: " + ofToString(matrixSize * matrixSize));
 	infoLines.push_back("");
 	infoLines.push_back("Controls:");
+	infoLines.push_back("left/right - Change base pattern");
 	infoLines.push_back("up/down - Change matrix size");
 	infoLines.push_back("I - Toggle indices " + std::string(showIndices ? "[ON]" : "[OFF]"));
 	infoLines.push_back("N - Toggle values " + std::string(showValues ? "[ON]" : "[OFF]"));
@@ -240,4 +270,57 @@ void ofApp::drawInfo() {
 	for(int i = 0; i < infoLines.size(); i++) {
 		ofDrawBitmapString(infoLines[i], 20, 30 + i * lineHeight);
 	}
+}
+
+void ofApp::initializeBaseMatrices() {
+	// Clear any existing base matrices
+	baseMatrices.clear();
+	
+	// Classic Bayer cross pattern
+	BaseMatrix classicBayer;
+	classicBayer.name = "Classic Bayer (Cross)";
+	classicBayer.matrix = {
+		{0, 2},
+		{3, 1}
+	};
+	baseMatrices.push_back(classicBayer);
+	
+	// Horizontal pattern - increases left to right
+	BaseMatrix horizontalBayer;
+	horizontalBayer.name = "Horizontal Lines";
+	horizontalBayer.matrix = {
+		{0, 1},
+		{2, 3}
+	};
+	baseMatrices.push_back(horizontalBayer);
+	
+	// Vertical pattern - increases top to bottom
+	BaseMatrix verticalBayer;
+	verticalBayer.name = "Vertical Lines";
+	verticalBayer.matrix = {
+		{0, 2},
+		{1, 3}
+	};
+	baseMatrices.push_back(verticalBayer);
+	
+	// Diagonal pattern - diagonal stripe
+	BaseMatrix diagonalBayer;
+	diagonalBayer.name = "Diagonal Stripe";
+	diagonalBayer.matrix = {
+		{0, 3},
+		{1, 2}
+	};
+	baseMatrices.push_back(diagonalBayer);
+	
+	// Anti-diagonal pattern
+	BaseMatrix antiDiagonalBayer;
+	antiDiagonalBayer.name = "Anti-Diagonal";
+	antiDiagonalBayer.matrix = {
+		{2, 1},
+		{3, 0}
+	};
+	baseMatrices.push_back(antiDiagonalBayer);
+	
+	// Make sure we have a valid current index
+	currentBaseIndex = 0;
 }
