@@ -26,6 +26,19 @@ class ofApp : public ofBaseApp{
 		bool showInfo = true;           // draw small help overlay
 		std::string tempImagePath = "final_frame_temp.png";
 		bool tempSaved = false;
+		
+		// Custom drawing mode
+		bool customMode = false;
+		std::vector<std::vector<int>> customMatrix;
+		std::vector<int> palette;        // palette indices (0 to paletteSize-1)
+		int selectedPaletteIndex = 0;
+		bool autoMode = false;
+		int autoModeIndex = 0;
+		
+		// Mouse state tracking for drag prevention
+		int lastPaintedX = -1;
+		int lastPaintedY = -1;
+		bool mouseWasReleased = true;
 
 		void saveTimestamped();
 		void saveMatrixImage();
@@ -52,4 +65,13 @@ class ofApp : public ofBaseApp{
 		void generateBayerMatrix(int size);
 		void drawMatrix();
 		void drawInfo();
+		
+		// Custom drawing functions
+		void initializeCustomMode();
+		void drawPalette();
+		void drawCustomMatrix();
+		void handlePaletteClick(int x, int y);
+		void handlePatternClick(int x, int y);
+		bool isInPaletteArea(int x, int y);
+		bool isInPatternArea(int x, int y);
 };

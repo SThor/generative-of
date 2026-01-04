@@ -11,7 +11,12 @@ void ofApp::update(){
 }
 
 void ofApp::draw(){
-	drawMatrix();
+	if(customMode) {
+		drawCustomMatrix();
+		drawPalette();
+	} else {
+		drawMatrix();
+	}
 	if(showInfo) drawInfo();
 }
 
@@ -40,26 +45,43 @@ void ofApp::keyPressed(int key){
 			if(showValues) showIndices = false;
 			tempSaved = false;
 			break;
+		case 'a': case 'A':
+			if(customMode) {
+				autoMode = !autoMode;
+				tempSaved = false;
+			}
+			break;
+		case 'c': case 'C':
+			customMode = !customMode;
+			if(customMode) {
+				initializeCustomMode();
+			}
+			tempSaved = false;
+			break;
 		case OF_KEY_UP:
 			if(matrixSize < 64) {
 				matrixSize *= 2;
-				generateBayerMatrix(matrixSize);
+				if (!customMode) generateBayerMatrix(matrixSize);
+				else initializeCustomMode();
 				tempSaved = false;
 			}
 			break;
 		case OF_KEY_DOWN:
 			if(matrixSize > 2) {
 				matrixSize /= 2;
-				generateBayerMatrix(matrixSize);
+				if (!customMode) generateBayerMatrix(matrixSize);
+				else initializeCustomMode();
 				tempSaved = false;
 			}
 			break;
 		case OF_KEY_LEFT:
+			if(customMode) break;
 			currentBaseIndex = (currentBaseIndex - 1 + baseMatrices.size()) % baseMatrices.size();
 			generateBayerMatrix(matrixSize);
 			tempSaved = false;
 			break;
 		case OF_KEY_RIGHT:
+			if(customMode) break;
 			currentBaseIndex = (currentBaseIndex + 1) % baseMatrices.size();
 			generateBayerMatrix(matrixSize);
 			tempSaved = false;
@@ -71,9 +93,33 @@ void ofApp::keyPressed(int key){
 void ofApp::dragEvent(ofDragInfo dragInfo){}
 void ofApp::keyReleased(int key){}
 void ofApp::mouseMoved(int x, int y){}
-void ofApp::mouseDragged(int x, int y, int button){}
-void ofApp::mousePressed(int x, int y, int button){}
-void ofApp::mouseReleased(int x, int y, int button){}
+void ofApp::mouseDragged(int x, int y, int button){
+	if(customMode && button == 0) { // Left mouse button
+		mouseWasReleased = false; // Mark that we're dragging
+		handlePatternClick(x, y);
+	}
+}
+void ofApp::mousePressed(int x, int y, int button){
+	if (button != 0) return; // Only respond to left mouse button
+	mouseWasReleased = true; // Reset on new mouse press
+	if(!customMode) {
+		// Switch to custom mode on first mouse down
+		customMode = true;
+		initializeCustomMode();
+		tempSaved = false;
+	} else {
+		if(isInPaletteArea(x, y)) {
+			handlePaletteClick(x, y);
+		} else if(isInPatternArea(x, y)) {
+			handlePatternClick(x, y);
+		}
+	}
+}
+void ofApp::mouseReleased(int x, int y, int button){
+	if (button == 0) { // Left mouse button
+		mouseWasReleased = true;
+	}
+}
 void ofApp::mouseEntered(int x, int y){}
 void ofApp::mouseExited(int x, int y){}
 void ofApp::windowResized(int w, int h){tempSaved=false; }
@@ -100,28 +146,34 @@ void ofApp::saveMatrixImage(){
 	
 	for(int y = 0; y < matrixSize; y++) {
 		for(int x = 0; x < matrixSize; x++) {
+			// Get value from appropriate matrix
+			int value = customMode ? customMatrix[y][x] : bayerMatrix[y][x];
+			
 			// Normalize value to 0-255 range
-			float normalizedValue = (float)bayerMatrix[y][x] / (float)totalCells;
+			float normalizedValue = (float)value / (float)(totalCells - 1);
 			unsigned char grayValue = (unsigned char)(normalizedValue * 255);
 			matrixImg.setColor(x, y, ofColor(grayValue));
 		}
 	}
 	
-	// Create safe filename from base matrix name
-	std::string baseName = baseMatrices[currentBaseIndex].name;
-	std::string safeBaseName;
-	for(char c : baseName) {
-		if(std::isalnum(c)) {
-			safeBaseName += std::tolower(c);
-		} else if(c == ' ' || c == '(' || c == ')' || c == '-') {
-			safeBaseName += '_';
-		}
-	}
-	
-	// Save image with descriptive filename including base matrix name
+	// Create filename based on mode
 	char buf[128];
-	std::snprintf(buf, sizeof(buf), "%s_%dx%d.png", 
-			 safeBaseName.c_str(), matrixSize, matrixSize);
+	if(customMode) {
+		std::snprintf(buf, sizeof(buf), "custom_%dx%d.png", matrixSize, matrixSize);
+	} else {
+		// Create safe filename from base matrix name
+		std::string baseName = baseMatrices[currentBaseIndex].name;
+		std::string safeBaseName;
+		for(char c : baseName) {
+			if(std::isalnum(c)) {
+				safeBaseName += std::tolower(c);
+			} else if(c == ' ' || c == '(' || c == ')' || c == '-') {
+				safeBaseName += '_';
+			}
+		}
+		std::snprintf(buf, sizeof(buf), "%s_%dx%d.png", 
+				 safeBaseName.c_str(), matrixSize, matrixSize);
+	}
 	
 	matrixImg.save(buf);
 	ofLogNotice() << "Matrix image saved as: " << buf;
@@ -242,13 +294,32 @@ void ofApp::drawInfo() {
 	std::vector<std::string> infoLines;
 	infoLines.push_back("Bayer Matrix Visualizer");
 	infoLines.push_back("");
-	infoLines.push_back("Base Pattern: " + baseMatrices[currentBaseIndex].name);
-	infoLines.push_back("Matrix Size: " + ofToString(matrixSize) + "x" + ofToString(matrixSize));
-	infoLines.push_back("Total Values: " + ofToString(matrixSize * matrixSize));
-	infoLines.push_back("");
-	infoLines.push_back("Controls:");
-	infoLines.push_back("left/right - Change base pattern");
-	infoLines.push_back("up/down - Change matrix size");
+	
+	if(customMode) {
+		infoLines.push_back("Mode: CUSTOM DRAWING");
+		infoLines.push_back("Matrix Size: " + ofToString(matrixSize) + "x" + ofToString(matrixSize));
+		infoLines.push_back("Palette Size: " + ofToString(palette.size()) + " grays");
+		infoLines.push_back("Auto Mode: " + std::string(autoMode ? "ON" : "OFF"));
+		infoLines.push_back("");
+		infoLines.push_back("Controls:");
+		infoLines.push_back("Click pattern - Draw with selected/auto color");
+		infoLines.push_back("Click palette - Select color");
+		infoLines.push_back("Drag on pattern - Continuous drawing");
+		infoLines.push_back("A - Toggle auto mode");
+		infoLines.push_back("C - Exit custom mode");
+	} else {
+		infoLines.push_back("Mode: PRESET PATTERNS");
+		infoLines.push_back("Base Pattern: " + baseMatrices[currentBaseIndex].name);
+		infoLines.push_back("Matrix Size: " + ofToString(matrixSize) + "x" + ofToString(matrixSize));
+		infoLines.push_back("Total Values: " + ofToString(matrixSize * matrixSize));
+		infoLines.push_back("");
+		infoLines.push_back("Controls:");
+		infoLines.push_back("left/right - Change base pattern");
+		infoLines.push_back("up/down - Change matrix size");
+		infoLines.push_back("Click anywhere - Start custom drawing");
+		infoLines.push_back("C - Enter custom mode");
+	}
+	
 	infoLines.push_back("I - Toggle indices " + std::string(showIndices ? "[ON]" : "[OFF]"));
 	infoLines.push_back("N - Toggle values " + std::string(showValues ? "[ON]" : "[OFF]"));
 	infoLines.push_back("S - Save screenshot");
@@ -259,7 +330,7 @@ void ofApp::drawInfo() {
 	int lineHeight = 14; // approximate line height for bitmap font
 	int padding = 20;
 	int rectHeight = infoLines.size() * lineHeight + padding;
-	int rectWidth = 300; // keep width fixed or could calculate from longest line
+	int rectWidth = 350; // increase width for longer lines
 	
 	// Semi-transparent background
 	ofSetColor(0, 0, 0, 180);
@@ -323,4 +394,237 @@ void ofApp::initializeBaseMatrices() {
 	
 	// Make sure we have a valid current index
 	currentBaseIndex = 0;
+}
+
+void ofApp::initializeCustomMode() {
+	// Initialize custom matrix with current matrix size
+	customMatrix.resize(matrixSize);
+	for(int i = 0; i < matrixSize; i++) {
+		customMatrix[i].resize(matrixSize, 0); // Initialize with 0s
+	}
+	
+	// Create palette indices (0 to totalCells-1)
+	int totalCells = matrixSize * matrixSize;
+	palette.clear();
+	for(int i = 0; i < totalCells; i++) {
+		palette.push_back(i);
+	}
+	
+	selectedPaletteIndex = 0;
+	autoMode = false;
+	autoModeIndex = 0;
+	
+	// Reset tracking variables
+	lastPaintedX = -1;
+	lastPaintedY = -1;
+	mouseWasReleased = true;
+}
+
+void ofApp::drawCustomMatrix() {
+	int totalCells = matrixSize * matrixSize;
+	
+	// Calculate centering offset for pattern
+	int totalWidth = matrixSize * cellSize;
+	int totalHeight = matrixSize * cellSize;
+	int offsetX = (ofGetWidth() - totalWidth) / 2;
+	int offsetY = (ofGetHeight() - totalHeight) / 2 - 50; // Move up to make room for palette
+	
+	// Draw each cell
+	for(int y = 0; y < matrixSize; y++) {
+		for(int x = 0; x < matrixSize; x++) {
+			int cellX = offsetX + x * cellSize;
+			int cellY = offsetY + y * cellSize;
+			
+			// Calculate gray value from index (0-255)
+			float normalizedValue = (float)customMatrix[y][x] / (float)(totalCells - 1);
+			int grayValue = (int)(normalizedValue * 255);
+			
+			// Draw cell background
+			ofSetColor(grayValue);
+			ofDrawRectangle(cellX, cellY, cellSize, cellSize);
+			
+			// Draw border for better visibility
+			if(x == lastPaintedX && y == lastPaintedY) {
+				ofSetColor(0, 255, 0); // Green highlight
+			} else {
+				ofSetColor(128);
+			}
+			ofNoFill();
+			ofDrawRectangle(cellX, cellY, cellSize, cellSize);
+			ofFill();
+			
+			// Draw text overlay if enabled
+			if(showIndices || showValues) {
+				ofSetColor(grayValue > 127 ? 0 : 255);
+				
+				std::string text;
+				if(showIndices) {
+					text = ofToString(customMatrix[y][x]);
+				} else if(showValues) {
+					text = ofToString(normalizedValue, 3);
+				}
+				
+				// Approximate text centering
+				float textWidth = text.length() * 8;
+				float textHeight = 11;
+				float textX = cellX + (cellSize - textWidth) / 2;
+				float textY = cellY + (cellSize + textHeight) / 2;
+				
+				ofDrawBitmapString(text, textX, textY);
+			}
+		}
+	}
+}
+
+void ofApp::drawPalette() {
+	int totalCells = matrixSize * matrixSize;
+	int paletteSize = palette.size();
+	
+	// Calculate palette layout
+	int maxPaletteWidth = ofGetWidth() - 40; // Leave margins
+	int paletteCellSize = std::min(20, maxPaletteWidth / paletteSize);
+	int paletteWidth = paletteSize * paletteCellSize;
+	
+	// Center palette horizontally at bottom of screen
+	int paletteX = (ofGetWidth() - paletteWidth) / 2;
+	int paletteY = ofGetHeight() - 80;
+	
+	// Draw palette background
+	ofSetColor(40);
+	ofDrawRectangle(paletteX - 10, paletteY - 10, paletteWidth + 20, paletteCellSize + 20);
+	
+	// Draw palette cells
+	for(int i = 0; i < paletteSize; i++) {
+		int cellX = paletteX + i * paletteCellSize;
+		int cellY = paletteY;
+		
+		// Calculate gray value for this palette index
+		float normalizedValue = (float)palette[i] / (float)(totalCells - 1);
+		int grayValue = (int)(normalizedValue * 255);
+		
+		// Draw cell
+		ofSetColor(grayValue);
+		ofDrawRectangle(cellX, cellY, paletteCellSize, paletteCellSize);
+		
+		// Highlight selected cell or auto mode current index
+		if(autoMode && i == autoModeIndex) {
+			// Blue border for auto mode current index
+			ofSetColor(0, 100, 255); // Blue
+			ofNoFill();
+			ofSetLineWidth(3);
+			ofDrawRectangle(cellX, cellY, paletteCellSize, paletteCellSize);
+			ofFill();
+			ofSetLineWidth(1);
+		} else if(!autoMode && i == selectedPaletteIndex) {
+			// Red border for manually selected
+			ofSetColor(255, 0, 0); // Red border for selected
+			ofNoFill();
+			ofSetLineWidth(2);
+			ofDrawRectangle(cellX, cellY, paletteCellSize, paletteCellSize);
+			ofFill();
+			ofSetLineWidth(1);
+		} else {
+			// Regular border
+			ofSetColor(128);
+			ofNoFill();
+			ofDrawRectangle(cellX, cellY, paletteCellSize, paletteCellSize);
+			ofFill();
+		}
+	}
+	
+	// Draw palette info
+	ofSetColor(255);
+	std::string paletteInfo = "Palette - Selected: " + ofToString(selectedPaletteIndex) + 
+							 " (" + ofToString((int)((float)palette[selectedPaletteIndex] / (float)(totalCells - 1) * 100)) + "% gray)";
+	if(autoMode) paletteInfo += " - AUTO MODE";
+	ofDrawBitmapString(paletteInfo, paletteX, paletteY + paletteCellSize + 25);
+}
+
+void ofApp::handlePaletteClick(int x, int y) {
+	int totalCells = matrixSize * matrixSize;
+	int paletteSize = palette.size();
+	
+	// Calculate palette layout (same as in drawPalette)
+	int maxPaletteWidth = ofGetWidth() - 40;
+	int paletteCellSize = std::min(20, maxPaletteWidth / paletteSize);
+	int paletteWidth = paletteSize * paletteCellSize;
+	int paletteX = (ofGetWidth() - paletteWidth) / 2;
+	int paletteY = ofGetHeight() - 80;
+	
+	// Check if click is within palette area
+	if(x >= paletteX && x < paletteX + paletteWidth && 
+	   y >= paletteY && y < paletteY + paletteCellSize) {
+		
+		// Calculate which palette cell was clicked
+		int paletteIndex = (x - paletteX) / paletteCellSize;
+		if(paletteIndex >= 0 && paletteIndex < paletteSize) {
+			selectedPaletteIndex = paletteIndex;
+			tempSaved = false;
+		}
+	}
+}
+
+void ofApp::handlePatternClick(int x, int y) {
+	// Calculate pattern area (same as in drawCustomMatrix)
+	int totalWidth = matrixSize * cellSize;
+	int totalHeight = matrixSize * cellSize;
+	int offsetX = (ofGetWidth() - totalWidth) / 2;
+	int offsetY = (ofGetHeight() - totalHeight) / 2 - 50;
+	
+	// Check if click is within pattern area
+	if(x >= offsetX && x < offsetX + totalWidth && 
+	   y >= offsetY && y < offsetY + totalHeight) {
+		
+		// Calculate which matrix cell was clicked
+		int matrixX = (x - offsetX) / cellSize;
+		int matrixY = (y - offsetY) / cellSize;
+		
+		if(matrixX >= 0 && matrixX < matrixSize && matrixY >= 0 && matrixY < matrixSize) {
+			// Check if we should prevent duplicate painting in auto mode
+			if(autoMode && !mouseWasReleased && 
+			   matrixX == lastPaintedX && matrixY == lastPaintedY) {
+				return; // Don't paint again in the same cell while dragging
+			}
+			
+			// Paint the cell
+			if(autoMode) {
+				// Auto mode: cycle through palette
+				customMatrix[matrixY][matrixX] = palette[autoModeIndex];
+				autoModeIndex = (autoModeIndex + 1) % palette.size();
+			} else {
+				// Manual mode: use selected palette color
+				customMatrix[matrixY][matrixX] = palette[selectedPaletteIndex];
+			}
+			
+			// Track the last painted cell for highlighting and duplicate prevention
+			lastPaintedX = matrixX;
+			lastPaintedY = matrixY;
+			mouseWasReleased = false; // Mark that we've painted while dragging
+			
+			tempSaved = false;
+		}
+	}
+}
+
+bool ofApp::isInPaletteArea(int x, int y) {
+	int totalCells = matrixSize * matrixSize;
+	int paletteSize = palette.size();
+	int maxPaletteWidth = ofGetWidth() - 40;
+	int paletteCellSize = std::min(20, maxPaletteWidth / paletteSize);
+	int paletteWidth = paletteSize * paletteCellSize;
+	int paletteX = (ofGetWidth() - paletteWidth) / 2;
+	int paletteY = ofGetHeight() - 80;
+	
+	return (x >= paletteX && x < paletteX + paletteWidth && 
+			y >= paletteY && y < paletteY + paletteCellSize);
+}
+
+bool ofApp::isInPatternArea(int x, int y) {
+	int totalWidth = matrixSize * cellSize;
+	int totalHeight = matrixSize * cellSize;
+	int offsetX = (ofGetWidth() - totalWidth) / 2;
+	int offsetY = (ofGetHeight() - totalHeight) / 2 - 50;
+	
+	return (x >= offsetX && x < offsetX + totalWidth && 
+			y >= offsetY && y < offsetY + totalHeight);
 }
