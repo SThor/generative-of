@@ -1,8 +1,9 @@
 #include "ofApp.h"
 
 void ofApp::setup() {
-	// Allocate pixel buffer and image once
+	// Allocate pixel buffers once
 	pixels.allocate(ofGetWidth(), ofGetHeight(), OF_IMAGE_GRAYSCALE);
+	noisePixels.allocate(ofGetWidth(), ofGetHeight(), OF_IMAGE_GRAYSCALE);
 	
 	// Load dither patterns
 	loadDitherPatterns();
@@ -25,10 +26,13 @@ void ofApp::generateNoise() {
 	
 	for (int y = 0; y < ofGetHeight(); y++) {
 		for (int x = 0; x < ofGetWidth(); x++) {
-			float noise = ofNoise(x * 0.002, y * 0.002, timeOffset);
-			pixels.setColor(x, y, ofColor(noise * 255));
+			float noise = ofNoise(x * 0.001, y * 0.001, timeOffset);
+			noisePixels.setColor(x, y, ofColor(noise * 255));
 		}
 	}
+	
+	// Copy clean noise to working pixels for dithering
+	pixels = noisePixels;
 }
 
 void ofApp::ditherAndDraw() {
@@ -57,32 +61,8 @@ void ofApp::gpuDither() {
 }
 
 void ofApp::cpuDither() {
-	// load the current dither pattern
-	ofImage &pattern = ditherPatterns[currentPatternIndex].image;
-	int patternWidth = pattern.getWidth();
-	int patternHeight = pattern.getHeight();
-	ofPixels &patternPixels = pattern.getPixels();
-
-	// iterate over each pixel and apply dithering
-	for (int y = 0; y < ofGetHeight(); y++) {
-		for (int x = 0; x < ofGetWidth(); x++) {
-			ofColor pixelColor = pixels.getColor(x, y);
-			int brightness = pixelColor.r; // Grayscale, so r=g=b
-
-			// Get corresponding pattern pixel
-			int patternX = x % patternWidth;
-			int patternY = y % patternHeight;
-			ofColor patternColor = patternPixels.getColor(patternX, patternY);
-			int threshold = patternColor.r; // Assuming pattern is grayscale
-
-			// Apply dithering
-			if (brightness > threshold) {
-				pixels.setColor(x, y, ofColor(255));
-			} else {
-				pixels.setColor(x, y, ofColor(0));
-			}
-		}
-	}
+	// Apply dithering using current pattern
+	applyDitherToPixels(pixels, ditherPatterns[currentPatternIndex]);
 	
 	image.setFromPixels(pixels);
 	image.draw(0, 0);
@@ -129,6 +109,10 @@ void ofApp::keyPressed(int key) {
 			// Store current time when pausing
 			pausedTime = ofGetElapsedTimef() * 0.05;
 		}
+		break;
+	case 'e':
+	case 'E':
+		exportAllPatterns();
 		break;
 	default:
 		break;
@@ -234,6 +218,7 @@ void ofApp::drawInfo() {
 	infoLines.push_back("V - Toggle help");
 	infoLines.push_back("P - Toggle pattern preview");
 	infoLines.push_back("S - Save screenshot");
+	infoLines.push_back("E - Export all patterns");
 	infoLines.push_back("G - Toggle GPU/CPU dithering");
 	
 	// Calculate dynamic size
@@ -279,4 +264,68 @@ void ofApp::drawPatternPreview() {
 	ofNoFill();
 	ofDrawRectangle(x - 1, y - 1, previewSize + 2, previewSize + 2);
 	ofFill();
+}
+
+void ofApp::exportAllPatterns() {
+	if(ditherPatterns.empty()) {
+		ofLogWarning() << "No dither patterns to export with";
+		return;
+	}
+	
+	// Generate timestamp for this export batch
+	auto now = std::time(nullptr);
+	std::tm * tmPtr = std::localtime(&now);
+	char timeStr[32];
+	std::strftime(timeStr, sizeof(timeStr), "%Y-%m-%d_%H-%M-%S", tmPtr);
+	
+	ofLogNotice() << "Exporting current noise with all " << ditherPatterns.size() << " dither patterns...";
+	
+	// Export with each pattern
+	for(int i = 0; i < ditherPatterns.size(); i++) {
+		// Start with clean noise pixels
+		ofPixels exportPixels = noisePixels;
+		
+		// Apply current pattern
+		applyDitherToPixels(exportPixels, ditherPatterns[i]);
+		
+		// Save this dithered result
+		ofImage exportImg;
+		exportImg.setFromPixels(exportPixels);
+		
+		// Create filename: timestamp_patternname.png
+		std::string filename = std::string(timeStr) + "_" + ditherPatterns[i].filename;
+		exportImg.save(filename);
+		
+		ofLogNotice() << "Exported: " << filename;
+	}
+	
+	ofLogNotice() << "Export complete! " << ditherPatterns.size() << " images saved.";
+}
+
+void ofApp::applyDitherToPixels(ofPixels& targetPixels, const DitherPattern& pattern) {
+	// Get pattern properties
+	int patternWidth = pattern.image.getWidth();
+	int patternHeight = pattern.image.getHeight();
+	const ofPixels& patternPixels = pattern.image.getPixels();
+
+	// Apply dithering to all pixels
+	for (int y = 0; y < ofGetHeight(); y++) {
+		for (int x = 0; x < ofGetWidth(); x++) {
+			ofColor pixelColor = targetPixels.getColor(x, y);
+			int brightness = pixelColor.r; // Grayscale
+
+			// Get corresponding pattern pixel
+			int patternX = x % patternWidth;
+			int patternY = y % patternHeight;
+			ofColor patternColor = patternPixels.getColor(patternX, patternY);
+			int threshold = patternColor.r; // Assuming pattern is grayscale
+
+			// Apply dithering
+			if (brightness > threshold) {
+				targetPixels.setColor(x, y, ofColor(255));
+			} else {
+				targetPixels.setColor(x, y, ofColor(0));
+			}
+		}
+	}
 }

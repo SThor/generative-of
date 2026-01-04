@@ -39,12 +39,14 @@ class ofApp : public ofBaseApp{
 		void saveTimestamped();
 		void drawInfo();
 		void drawPatternPreview();
+		void exportAllPatterns();
 
 		void generateNoise();
 		void ditherAndDraw();
 		
 		// Reusable image data
-		ofPixels pixels;
+		ofPixels pixels;      // working pixels for display
+		ofPixels noisePixels; // clean noise pixels for export
 		ofImage image;
 		
 		// Dither patterns
@@ -56,4 +58,5 @@ class ofApp : public ofBaseApp{
 		bool gpuDithering = false;
 		void gpuDither();
 		void cpuDither();
+		void applyDitherToPixels(ofPixels& targetPixels, const DitherPattern& pattern);
 };
