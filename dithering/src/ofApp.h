@@ -56,9 +56,15 @@ class ofApp : public ofBaseApp{
 		int currentPatternIndex = 0;
 		
 		void loadDitherPatterns();
+		void addDitherPattern(const std::string& filename, const ofImage& image);
 
 		bool gpuDithering = false;
 		void gpuDither();
 		void cpuDither();
 		void applyDitherToPixels(ofPixels& targetPixels, const DitherPattern& pattern);
+		
+		// Pattern preview constants
+		static const int PREVIEW_SIZE = 64;
+		static const int PREVIEW_MARGIN = 10;
+		static const int PREVIEW_EXTRA_MARGIN = 20; // Extra margin for easier drag targeting
 };

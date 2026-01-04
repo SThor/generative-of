@@ -130,6 +130,16 @@ void ofApp::keyPressed(int key) {
 void ofApp::dragEvent(ofDragInfo dragInfo){
 	if (!dragInfo.files.size()) return;
 
+	// Check if drop is in pattern preview area (top-right corner)
+	int previewX = ofGetWidth() - PREVIEW_SIZE - PREVIEW_MARGIN;
+	int previewY = PREVIEW_MARGIN;
+	
+	bool isInPreviewArea = (dragInfo.position.x >= previewX - PREVIEW_EXTRA_MARGIN && 
+	                        dragInfo.position.x <= previewX + PREVIEW_SIZE + PREVIEW_EXTRA_MARGIN &&
+	                        dragInfo.position.y >= previewY - PREVIEW_EXTRA_MARGIN && 
+	                        dragInfo.position.y <= previewY + PREVIEW_SIZE + PREVIEW_EXTRA_MARGIN &&
+	                        showPatternPreview);
+
 	// Handle file drops
 	for(int i = 0; i < dragInfo.files.size(); i++) {
 		ofLogNotice() << "File dropped: " << dragInfo.files[i];
@@ -140,19 +150,28 @@ void ofApp::dragEvent(ofDragInfo dragInfo){
 		
 		if(extension == "png" || extension == "jpg" || extension == "jpeg" || extension == "bmp" || extension == "gif" || extension == "webp") {
 			ofLogNotice() << "Image file detected: " << dragInfo.files[i];
-			ofImage baseImage;
+			ofImage loadedImage;
 			
 			// Load the image
-			if(baseImage.load(dragInfo.files[i])) {
-				hasBaseImage = true;
-				ofLogNotice() << "Image loaded successfully: " << baseImage.getWidth() << "x" << baseImage.getHeight();
+			if(loadedImage.load(dragInfo.files[i])) {
+				ofLogNotice() << "Image loaded successfully: " << loadedImage.getWidth() << "x" << loadedImage.getHeight();
 				
-				// Resize window to match image dimensions
-				// int newWidth = baseImage.getWidth();
-				// int newHeight = baseImage.getHeight();
-				// ofSetWindowShape(newWidth, newHeight);
+				if(isInPreviewArea) {
+					// Drop in pattern preview area - add as new dither pattern
+					ofLogNotice() << "Adding as new dither pattern";
+					addDitherPattern(file.getFileName(), loadedImage);
+				} else {
+					// Drop elsewhere - replace base image
+					ofLogNotice() << "Replacing base image";
+					hasBaseImage = true;
+					
+					// Resize window to match image dimensions
+					// int newWidth = loadedImage.getWidth();
+					// int newHeight = loadedImage.getHeight();
+					// ofSetWindowShape(newWidth, newHeight);
 
-				basePixels = baseImage.getPixels();
+					basePixels = loadedImage.getPixels();
+				}
 				
 				tempSaved = false; // mark for new screenshot
 			} else {
@@ -223,6 +242,32 @@ void ofApp::loadDitherPatterns() {
 	ofLogNotice() << "Loaded " << ditherPatterns.size() << " dither patterns (sorted by size)";
 }
 
+void ofApp::addDitherPattern(const std::string& filename, const ofImage& image) {
+	DitherPattern newPattern;
+	newPattern.filename = filename;
+	newPattern.image = image;
+	newPattern.area = image.getWidth() * image.getHeight();
+	
+	// Add the new pattern
+	ditherPatterns.push_back(newPattern);
+	
+	// Re-sort by size
+	std::sort(ditherPatterns.begin(), ditherPatterns.end(), [](const DitherPattern& a, const DitherPattern& b) {
+		return a.area < b.area;
+	});
+	
+	// Switch to the new pattern
+	for(int i = 0; i < ditherPatterns.size(); i++) {
+		if(ditherPatterns[i].filename == filename) {
+			currentPatternIndex = i;
+			break;
+		}
+	}
+	
+	ofLogNotice() << "Added new dither pattern: " << filename << " (" << image.getWidth() << "x" << image.getHeight() << ")";
+	ofLogNotice() << "Total patterns: " << ditherPatterns.size();
+}
+
 void ofApp::drawInfo() {
 	// Build info lines
 	std::vector<std::string> infoLines;
@@ -283,28 +328,25 @@ void ofApp::drawInfo() {
 void ofApp::drawPatternPreview() {
 	if(ditherPatterns.empty()) return;
 	
-	const int previewSize = 64;
-	const int margin = 10;
-	
 	// Position in top-right corner
-	int x = ofGetWidth() - previewSize - margin;
-	int y = margin;
+	int x = ofGetWidth() - PREVIEW_SIZE - PREVIEW_MARGIN;
+	int y = PREVIEW_MARGIN;
 	
 	// Draw dark background
 	ofSetColor(40);
-	ofDrawRectangle(x - 2, y - 2, previewSize + 4, previewSize + 4);
+	ofDrawRectangle(x - 2, y - 2, PREVIEW_SIZE + 4, PREVIEW_SIZE + 4);
 	
 	// Draw pattern preview scaled to 64x64 using nearest neighbor
 	ofSetColor(255);  // Full white tint
 	
 	// Set texture filtering to nearest neighbor for crisp pixels
 	ditherPatterns[currentPatternIndex].image.getTexture().setTextureMinMagFilter(GL_NEAREST, GL_NEAREST);
-	ditherPatterns[currentPatternIndex].image.draw(x, y, previewSize, previewSize);
+	ditherPatterns[currentPatternIndex].image.draw(x, y, PREVIEW_SIZE, PREVIEW_SIZE);
 	
 	// Draw border
 	ofSetColor(120);
 	ofNoFill();
-	ofDrawRectangle(x - 1, y - 1, previewSize + 2, previewSize + 2);
+	ofDrawRectangle(x - 1, y - 1, PREVIEW_SIZE + 2, PREVIEW_SIZE + 2);
 	ofFill();
 }
 
