@@ -27,13 +27,24 @@ class ofApp : public ofBaseApp{
 		std::string tempImagePath = "final_frame_temp.png";
 		bool tempSaved = false;
 		
+		// Mode system
+		enum Mode {
+			MATRIX_MODE = 0,    // F1 - Matrix-based patterns
+			CUSTOM_MODE = 1,    // F2 - Custom painting
+			GRADIENT_MODE = 2   // F3 - Circular gradient
+		};
+		Mode currentMode = MATRIX_MODE;
+		
 		// Custom drawing mode
-		bool customMode = false;
 		std::vector<std::vector<int>> customMatrix;
 		std::vector<int> palette;        // palette indices (0 to paletteSize-1)
 		int selectedPaletteIndex = 0;
 		bool autoMode = false;
 		int autoModeIndex = 0;
+		
+		// Circular gradient mode
+		std::vector<std::vector<int>> gradientMatrix;
+		bool gradientInverted = false;   // false: 0 at center, true: 1 at center
 		
 		// Mouse state tracking for drag prevention
 		int lastPaintedX = -1;
@@ -74,4 +85,9 @@ class ofApp : public ofBaseApp{
 		void handlePatternClick(int x, int y);
 		bool isInPaletteArea(int x, int y);
 		bool isInPatternArea(int x, int y);
+		
+		// Gradient mode functions
+		void initializeGradientMode();
+		void generateCircularGradient();
+		void drawGradientMatrix();
 };

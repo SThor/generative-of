@@ -11,9 +11,11 @@ void ofApp::update(){
 }
 
 void ofApp::draw(){
-	if(customMode) {
+	if(currentMode == CUSTOM_MODE) {
 		drawCustomMatrix();
 		drawPalette();
+	} else if(currentMode == GRADIENT_MODE) {
+		drawGradientMatrix();
 	} else {
 		drawMatrix();
 	}
@@ -46,45 +48,69 @@ void ofApp::keyPressed(int key){
 			tempSaved = false;
 			break;
 		case 'a': case 'A':
-			if(customMode) {
+			if(currentMode == CUSTOM_MODE) {
 				autoMode = !autoMode;
 				tempSaved = false;
 			}
 			break;
-		case 'c': case 'C':
-			customMode = !customMode;
-			if(customMode) {
-				initializeCustomMode();
+		case 'g': case 'G':
+			if(currentMode == GRADIENT_MODE) {
+				gradientInverted = !gradientInverted;
+				generateCircularGradient();
+				tempSaved = false;
 			}
+			break;
+		case OF_KEY_F1:
+			currentMode = MATRIX_MODE;
+			tempSaved = false;
+			break;
+		case OF_KEY_F2:
+			currentMode = CUSTOM_MODE;
+			initializeCustomMode();
+			tempSaved = false;
+			break;
+		case OF_KEY_F3:
+			currentMode = GRADIENT_MODE;
+			initializeGradientMode();
 			tempSaved = false;
 			break;
 		case OF_KEY_UP:
-			if(matrixSize < 64) {
+			if(currentMode == MATRIX_MODE && matrixSize < 64) {
 				matrixSize *= 2;
-				if (!customMode) generateBayerMatrix(matrixSize);
-				else initializeCustomMode();
+				generateBayerMatrix(matrixSize);
+				tempSaved = false;
+			} else if((currentMode == CUSTOM_MODE || currentMode == GRADIENT_MODE) && matrixSize < 64) {
+				matrixSize += 1;
+				if(currentMode == CUSTOM_MODE) initializeCustomMode();
+				if(currentMode == GRADIENT_MODE) initializeGradientMode();
 				tempSaved = false;
 			}
 			break;
 		case OF_KEY_DOWN:
-			if(matrixSize > 2) {
+			if(currentMode == MATRIX_MODE && matrixSize > 2) {
 				matrixSize /= 2;
-				if (!customMode) generateBayerMatrix(matrixSize);
-				else initializeCustomMode();
+				generateBayerMatrix(matrixSize);
+				tempSaved = false;
+			} else if((currentMode == CUSTOM_MODE || currentMode == GRADIENT_MODE) && matrixSize > 1) {
+				matrixSize -= 1;
+				if(currentMode == CUSTOM_MODE) initializeCustomMode();
+				if(currentMode == GRADIENT_MODE) initializeGradientMode();
 				tempSaved = false;
 			}
 			break;
 		case OF_KEY_LEFT:
-			if(customMode) break;
-			currentBaseIndex = (currentBaseIndex - 1 + baseMatrices.size()) % baseMatrices.size();
-			generateBayerMatrix(matrixSize);
-			tempSaved = false;
+			if(currentMode == MATRIX_MODE) {
+				currentBaseIndex = (currentBaseIndex - 1 + baseMatrices.size()) % baseMatrices.size();
+				generateBayerMatrix(matrixSize);
+				tempSaved = false;
+			}
 			break;
 		case OF_KEY_RIGHT:
-			if(customMode) break;
-			currentBaseIndex = (currentBaseIndex + 1) % baseMatrices.size();
-			generateBayerMatrix(matrixSize);
-			tempSaved = false;
+			if(currentMode == MATRIX_MODE) {
+				currentBaseIndex = (currentBaseIndex + 1) % baseMatrices.size();
+				generateBayerMatrix(matrixSize);
+				tempSaved = false;
+			}
 			break;
 		default: break;
 	}
@@ -94,7 +120,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo){}
 void ofApp::keyReleased(int key){}
 void ofApp::mouseMoved(int x, int y){}
 void ofApp::mouseDragged(int x, int y, int button){
-	if(customMode && button == 0) { // Left mouse button
+	if(currentMode == CUSTOM_MODE && button == 0) { // Left mouse button
 		mouseWasReleased = false; // Mark that we're dragging
 		handlePatternClick(x, y);
 	}
@@ -102,12 +128,12 @@ void ofApp::mouseDragged(int x, int y, int button){
 void ofApp::mousePressed(int x, int y, int button){
 	if (button != 0) return; // Only respond to left mouse button
 	mouseWasReleased = true; // Reset on new mouse press
-	if(!customMode) {
+	if(currentMode == MATRIX_MODE) {
 		// Switch to custom mode on first mouse down
-		customMode = true;
+		currentMode = CUSTOM_MODE;
 		initializeCustomMode();
 		tempSaved = false;
-	} else {
+	} else if(currentMode == CUSTOM_MODE) {
 		if(isInPaletteArea(x, y)) {
 			handlePaletteClick(x, y);
 		} else if(isInPatternArea(x, y)) {
@@ -146,8 +172,15 @@ void ofApp::saveMatrixImage(){
 	
 	for(int y = 0; y < matrixSize; y++) {
 		for(int x = 0; x < matrixSize; x++) {
-			// Get value from appropriate matrix
-			int value = customMode ? customMatrix[y][x] : bayerMatrix[y][x];
+			// Get value from appropriate matrix based on mode
+			int value;
+			if(currentMode == CUSTOM_MODE) {
+				value = customMatrix[y][x];
+			} else if(currentMode == GRADIENT_MODE) {
+				value = gradientMatrix[y][x];
+			} else {
+				value = bayerMatrix[y][x];
+			}
 			
 			// Normalize value to 0-255 range
 			float normalizedValue = (float)value / (float)(totalCells - 1);
@@ -158,8 +191,11 @@ void ofApp::saveMatrixImage(){
 	
 	// Create filename based on mode
 	char buf[128];
-	if(customMode) {
+	if(currentMode == CUSTOM_MODE) {
 		std::snprintf(buf, sizeof(buf), "custom_%dx%d.png", matrixSize, matrixSize);
+	} else if(currentMode == GRADIENT_MODE) {
+		std::snprintf(buf, sizeof(buf), "gradient_%dx%d%s.png", 
+				 matrixSize, matrixSize, gradientInverted ? "_inverted" : "");
 	} else {
 		// Create safe filename from base matrix name
 		std::string baseName = baseMatrices[currentBaseIndex].name;
@@ -295,8 +331,8 @@ void ofApp::drawInfo() {
 	infoLines.push_back("Bayer Matrix Visualizer");
 	infoLines.push_back("");
 	
-	if(customMode) {
-		infoLines.push_back("Mode: CUSTOM DRAWING");
+	if(currentMode == CUSTOM_MODE) {
+		infoLines.push_back("Mode: F2 - CUSTOM DRAWING");
 		infoLines.push_back("Matrix Size: " + ofToString(matrixSize) + "x" + ofToString(matrixSize));
 		infoLines.push_back("Palette Size: " + ofToString(palette.size()) + " grays");
 		infoLines.push_back("Auto Mode: " + std::string(autoMode ? "ON" : "OFF"));
@@ -306,31 +342,39 @@ void ofApp::drawInfo() {
 		infoLines.push_back("Click palette - Select color");
 		infoLines.push_back("Drag on pattern - Continuous drawing");
 		infoLines.push_back("A - Toggle auto mode");
-		infoLines.push_back("C - Exit custom mode");
+		infoLines.push_back("up/down - Change matrix size (+/-1)");
+	} else if(currentMode == GRADIENT_MODE) {
+		infoLines.push_back("Mode: F3 - CIRCULAR GRADIENT");
+		infoLines.push_back("Matrix Size: " + ofToString(matrixSize) + "x" + ofToString(matrixSize));
+		infoLines.push_back("Gradient: " + std::string(gradientInverted ? "Center=1, Edge=0" : "Center=0, Edge=1"));
+		infoLines.push_back("");
+		infoLines.push_back("Controls:");
+		infoLines.push_back("G - Toggle gradient direction");
+		infoLines.push_back("up/down - Change matrix size (+/-1)");
 	} else {
-		infoLines.push_back("Mode: PRESET PATTERNS");
+		infoLines.push_back("Mode: F1 - PRESET PATTERNS");
 		infoLines.push_back("Base Pattern: " + baseMatrices[currentBaseIndex].name);
 		infoLines.push_back("Matrix Size: " + ofToString(matrixSize) + "x" + ofToString(matrixSize));
 		infoLines.push_back("Total Values: " + ofToString(matrixSize * matrixSize));
 		infoLines.push_back("");
 		infoLines.push_back("Controls:");
 		infoLines.push_back("left/right - Change base pattern");
-		infoLines.push_back("up/down - Change matrix size");
-		infoLines.push_back("Click anywhere - Start custom drawing");
-		infoLines.push_back("C - Enter custom mode");
+		infoLines.push_back("up/down - Change matrix size (*2, /2)");
+		infoLines.push_back("Click anywhere - Switch to custom drawing");
 	}
 	
+	infoLines.push_back("");
+	infoLines.push_back("F1 - Matrix mode | F2 - Custom mode | F3 - Gradient mode");
 	infoLines.push_back("I - Toggle indices " + std::string(showIndices ? "[ON]" : "[OFF]"));
 	infoLines.push_back("N - Toggle values " + std::string(showValues ? "[ON]" : "[OFF]"));
-	infoLines.push_back("S - Save screenshot");
-	infoLines.push_back("E - Export matrix image");
+	infoLines.push_back("S - Save screenshot | E - Export matrix image");
 	infoLines.push_back("V - Toggle this help");
 	
 	// Calculate dynamic size
 	int lineHeight = 14; // approximate line height for bitmap font
 	int padding = 20;
 	int rectHeight = infoLines.size() * lineHeight + padding;
-	int rectWidth = 350; // increase width for longer lines
+	int rectWidth = 380; // increase width for longer lines
 	
 	// Semi-transparent background
 	ofSetColor(0, 0, 0, 180);
@@ -627,4 +671,102 @@ bool ofApp::isInPatternArea(int x, int y) {
 	
 	return (x >= offsetX && x < offsetX + totalWidth && 
 			y >= offsetY && y < offsetY + totalHeight);
+}
+
+void ofApp::initializeGradientMode() {
+	// Initialize gradient matrix with current matrix size
+	gradientMatrix.resize(matrixSize);
+	for(int i = 0; i < matrixSize; i++) {
+		gradientMatrix[i].resize(matrixSize);
+	}
+	
+	// Generate the circular gradient
+	generateCircularGradient();
+	
+	// Reset tracking variables (in case we came from custom mode)
+	lastPaintedX = -1;
+	lastPaintedY = -1;
+	mouseWasReleased = true;
+}
+
+void ofApp::generateCircularGradient() {
+	int totalCells = matrixSize * matrixSize;
+	float centerX = (matrixSize - 1) / 2.0f;
+	float centerY = (matrixSize - 1) / 2.0f;
+	
+	// Calculate the maximum distance from center to corner
+	float maxDistance = sqrt(centerX * centerX + centerY * centerY);
+	
+	for(int y = 0; y < matrixSize; y++) {
+		for(int x = 0; x < matrixSize; x++) {
+			// Calculate distance from center
+			float dx = x - centerX;
+			float dy = y - centerY;
+			float distance = sqrt(dx * dx + dy * dy);
+			
+			// Normalize distance to 0-1 range
+			float normalizedDistance = distance / maxDistance;
+			
+			// Apply inversion if needed
+			if(gradientInverted) {
+				normalizedDistance = 1.0f - normalizedDistance;
+			}
+			
+			// Convert to index (0 to totalCells-1)
+			int index = (int)(normalizedDistance * (totalCells - 1));
+			gradientMatrix[y][x] = index;
+		}
+	}
+}
+
+void ofApp::drawGradientMatrix() {
+	int totalCells = matrixSize * matrixSize;
+	
+	// Calculate centering offset for pattern
+	int totalWidth = matrixSize * cellSize;
+	int totalHeight = matrixSize * cellSize;
+	int offsetX = (ofGetWidth() - totalWidth) / 2;
+	int offsetY = (ofGetHeight() - totalHeight) / 2;
+	
+	// Draw each cell
+	for(int y = 0; y < matrixSize; y++) {
+		for(int x = 0; x < matrixSize; x++) {
+			int cellX = offsetX + x * cellSize;
+			int cellY = offsetY + y * cellSize;
+			
+			// Calculate gray value from index (0-255)
+			float normalizedValue = (float)gradientMatrix[y][x] / (float)(totalCells - 1);
+			int grayValue = (int)(normalizedValue * 255);
+			
+			// Draw cell background
+			ofSetColor(grayValue);
+			ofDrawRectangle(cellX, cellY, cellSize, cellSize);
+			
+			// Draw border for better visibility
+			ofSetColor(128);
+			ofNoFill();
+			ofDrawRectangle(cellX, cellY, cellSize, cellSize);
+			ofFill();
+			
+			// Draw text overlay if enabled
+			if(showIndices || showValues) {
+				ofSetColor(grayValue > 127 ? 0 : 255);
+				
+				std::string text;
+				if(showIndices) {
+					text = ofToString(gradientMatrix[y][x]);
+				} else if(showValues) {
+					text = ofToString(normalizedValue, 3);
+				}
+				
+				// Approximate text centering
+				float textWidth = text.length() * 8;
+				float textHeight = 11;
+				float textX = cellX + (cellSize - textWidth) / 2;
+				float textY = cellY + (cellSize + textHeight) / 2;
+				
+				ofDrawBitmapString(text, textX, textY);
+			}
+		}
+	}
 }
