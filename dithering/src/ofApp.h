@@ -41,12 +41,14 @@ class ofApp : public ofBaseApp{
 		void drawPatternPreview();
 		void exportAllPatterns();
 
-		void generateNoise();
+		ofPixels generateNoise();
 		void ditherAndDraw();
 		
 		// Reusable image data
-		ofPixels pixels;      // working pixels for display
-		ofPixels noisePixels; // clean noise pixels for export
+		bool hasBaseImage = false;
+		void drawImage();
+		ofPixels pixels;     // working pixels for display
+		ofPixels basePixels; // undithered base image pixels
 		ofImage image;
 		
 		// Dither patterns

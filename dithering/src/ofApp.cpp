@@ -3,7 +3,7 @@
 void ofApp::setup() {
 	// Allocate pixel buffers once
 	pixels.allocate(ofGetWidth(), ofGetHeight(), OF_IMAGE_GRAYSCALE);
-	noisePixels.allocate(ofGetWidth(), ofGetHeight(), OF_IMAGE_GRAYSCALE);
+	basePixels.allocate(ofGetWidth(), ofGetHeight(), OF_IMAGE_GRAYSCALE);
 	
 	// Load dither patterns
 	loadDitherPatterns();
@@ -13,14 +13,20 @@ void ofApp::update() {
 }
 
 void ofApp::draw() {
-	generateNoise();
+	ofSetColor(255);
+	if (!hasBaseImage) {
+		basePixels = generateNoise();
+	}
 	ditherAndDraw();
 	
 	if(showPatternPreview) drawPatternPreview();
 	if(showInfo) drawInfo();
 }
 
-void ofApp::generateNoise() {
+ofPixels ofApp::generateNoise() {
+	auto noisePixels = ofPixels();
+	noisePixels.allocate(ofGetWidth(), ofGetHeight(), OF_IMAGE_GRAYSCALE);
+
 	// Use paused time if animation is paused, otherwise use current time
 	float timeOffset = animationPaused ? pausedTime : ofGetElapsedTimef() * 0.05;
 	
@@ -30,16 +36,15 @@ void ofApp::generateNoise() {
 			noisePixels.setColor(x, y, ofColor(noise * 255));
 		}
 	}
-	
-	// Copy clean noise to working pixels for dithering
-	pixels = noisePixels;
+
+	return noisePixels;
 }
 
 void ofApp::ditherAndDraw() {
 	if (ditherPatterns.empty()) {
 		ofLogWarning() << "No dither patterns loaded.";
 		
-		image.setFromPixels(pixels);
+		image.setFromPixels(basePixels);
 		image.draw(0, 0);
 		return;
 	}
@@ -53,14 +58,17 @@ void ofApp::ditherAndDraw() {
 }
 
 void ofApp::gpuDither() {
+	pixels = basePixels; // start with base image
+
 	// Placeholder for GPU dithering implementation
 	// Currently just draws the original image
-
 	image.setFromPixels(pixels);
 	image.draw(0, 0);
 }
 
 void ofApp::cpuDither() {
+	pixels = basePixels; // start with base image
+
 	// Apply dithering using current pattern
 	applyDitherToPixels(pixels, ditherPatterns[currentPatternIndex]);
 	
@@ -118,7 +126,41 @@ void ofApp::keyPressed(int key) {
 		break;
 	}
 }
-void ofApp::dragEvent(ofDragInfo dragInfo) { }
+
+void ofApp::dragEvent(ofDragInfo dragInfo){
+	if (!dragInfo.files.size()) return;
+
+	// Handle file drops
+	for(int i = 0; i < dragInfo.files.size(); i++) {
+		ofLogNotice() << "File dropped: " << dragInfo.files[i];
+		
+		// You can check file extensions and handle different file types
+		ofFile file(dragInfo.files[i]);
+		string extension = ofToLower(file.getExtension());
+		
+		if(extension == "png" || extension == "jpg" || extension == "jpeg" || extension == "bmp" || extension == "gif" || extension == "webp") {
+			ofLogNotice() << "Image file detected: " << dragInfo.files[i];
+			ofImage baseImage;
+			
+			// Load the image
+			if(baseImage.load(dragInfo.files[i])) {
+				hasBaseImage = true;
+				ofLogNotice() << "Image loaded successfully: " << baseImage.getWidth() << "x" << baseImage.getHeight();
+				
+				// Resize window to match image dimensions
+				// int newWidth = baseImage.getWidth();
+				// int newHeight = baseImage.getHeight();
+				// ofSetWindowShape(newWidth, newHeight);
+
+				basePixels = baseImage.getPixels();
+				
+				tempSaved = false; // mark for new screenshot
+			} else {
+				ofLogError() << "Failed to load image: " << dragInfo.files[i];
+			}
+		}
+	}
+}
 void ofApp::keyReleased(int key) { }
 void ofApp::mouseMoved(int x, int y) { }
 void ofApp::mouseDragged(int x, int y, int button) { }
@@ -283,7 +325,7 @@ void ofApp::exportAllPatterns() {
 	// Export with each pattern
 	for(int i = 0; i < ditherPatterns.size(); i++) {
 		// Start with clean noise pixels
-		ofPixels exportPixels = noisePixels;
+		ofPixels exportPixels = basePixels;
 		
 		// Apply current pattern
 		applyDitherToPixels(exportPixels, ditherPatterns[i]);
@@ -308,9 +350,9 @@ void ofApp::applyDitherToPixels(ofPixels& targetPixels, const DitherPattern& pat
 	int patternHeight = pattern.image.getHeight();
 	const ofPixels& patternPixels = pattern.image.getPixels();
 
-	// Apply dithering to all pixels
-	for (int y = 0; y < ofGetHeight(); y++) {
-		for (int x = 0; x < ofGetWidth(); x++) {
+	// Apply dithering to all pixels - use actual pixel buffer dimensions
+	for (int y = 0; y < targetPixels.getHeight(); y++) {
+		for (int x = 0; x < targetPixels.getWidth(); x++) {
 			ofColor pixelColor = targetPixels.getColor(x, y);
 			int brightness = pixelColor.r; // Grayscale
 
