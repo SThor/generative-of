@@ -8,6 +8,12 @@ struct DitherPattern {
 	int area;
 };
 
+struct PatternGroup {
+	int width;
+	int height;
+	std::vector<DitherPattern> patterns;
+};
+
 class ofApp : public ofBaseApp{
 
 	public:
@@ -51,12 +57,16 @@ class ofApp : public ofBaseApp{
 		ofPixels basePixels; // undithered base image pixels
 		ofImage image;
 		
-		// Dither patterns
-		std::vector<DitherPattern> ditherPatterns;
-		int currentPatternIndex = 0;
+		// Dither patterns (grouped by size)
+		std::vector<PatternGroup> patternGroups;
+		int currentGroupIndex = 0;
+		int currentPatternIndexInGroup = 0;
 		
 		void loadDitherPatterns();
 		void addDitherPattern(const std::string& filename, const ofImage& image);
+		std::pair<int, int> insertPatternIntoGroups(const DitherPattern& pattern);
+		DitherPattern& getCurrentPattern();
+		bool hasPatterns() const;
 
 		bool gpuDithering = false;
 		void gpuDither();

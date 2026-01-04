@@ -41,7 +41,7 @@ ofPixels ofApp::generateNoise() {
 }
 
 void ofApp::ditherAndDraw() {
-	if (ditherPatterns.empty()) {
+	if (!hasPatterns()) {
 		ofLogWarning() << "No dither patterns loaded.";
 		
 		image.setFromPixels(basePixels);
@@ -70,7 +70,7 @@ void ofApp::cpuDither() {
 	pixels = basePixels; // start with base image
 
 	// Apply dithering using current pattern
-	applyDitherToPixels(pixels, ditherPatterns[currentPatternIndex]);
+	applyDitherToPixels(pixels, getCurrentPattern());
 	
 	image.setFromPixels(pixels);
 	image.draw(0, 0);
@@ -90,17 +90,49 @@ void ofApp::keyPressed(int key) {
 	case 'S':
 		saveTimestamped();
 		break;
-	case OF_KEY_UP: // Previous dither pattern
-		if(!ditherPatterns.empty()) {
-			currentPatternIndex = (currentPatternIndex - 1 + ditherPatterns.size()) % ditherPatterns.size();
-			tempSaved = false;
+	case OF_KEY_UP: // Previous dither pattern (or group with shift)
+		if(!hasPatterns()) break;
+		if(ofGetKeyPressed(OF_KEY_SHIFT)) {
+			// Shift+Up: Previous group
+			if(currentGroupIndex > 0) {
+				currentGroupIndex--;
+				// Keep same index in group if possible, otherwise clamp
+				currentPatternIndexInGroup = std::min(currentPatternIndexInGroup, 
+					(int)patternGroups[currentGroupIndex].patterns.size() - 1);
+			}
+		} else {
+			// Normal Up: Previous pattern within current group, or go to end of previous group
+			if(currentPatternIndexInGroup > 0) {
+				currentPatternIndexInGroup--;
+			} else if(currentGroupIndex > 0) {
+				// Go to end of previous group
+				currentGroupIndex--;
+				currentPatternIndexInGroup = patternGroups[currentGroupIndex].patterns.size() - 1;
+			}
 		}
+		tempSaved = false;
 		break;
-	case OF_KEY_DOWN: // Next dither pattern
-		if(!ditherPatterns.empty()) {
-			currentPatternIndex = (currentPatternIndex + 1) % ditherPatterns.size();
-			tempSaved = false;
+	case OF_KEY_DOWN: // Next dither pattern (or group with shift)
+		if(!hasPatterns()) break;
+		if(ofGetKeyPressed(OF_KEY_SHIFT)) {
+			// Shift+Down: Next group
+			if(currentGroupIndex < patternGroups.size() - 1) {
+				currentGroupIndex++;
+				// Keep same index in group if possible, otherwise clamp
+				currentPatternIndexInGroup = std::min(currentPatternIndexInGroup, 
+					(int)patternGroups[currentGroupIndex].patterns.size() - 1);
+			}
+		} else {
+			// Normal Down: Next pattern within current group, or go to start of next group
+			if(currentPatternIndexInGroup < patternGroups[currentGroupIndex].patterns.size() - 1) {
+				currentPatternIndexInGroup++;
+			} else if(currentGroupIndex < patternGroups.size() - 1) {
+				// Go to start of next group
+				currentGroupIndex++;
+				currentPatternIndexInGroup = 0;
+			}
 		}
+		tempSaved = false;
 		break;
 	case 'g':
 	case 'G':
@@ -215,9 +247,10 @@ void ofApp::loadDitherPatterns() {
 		return;
 	}
 	
-	// Load all pattern files
-	ditherPatterns.clear();
+	// Clear existing patterns
+	patternGroups.clear();
 	
+	// Load all pattern files
 	for(int i = 0; i < dir.size(); i++) {
 		std::string filename = dir.getName(i);
 		
@@ -227,19 +260,21 @@ void ofApp::loadDitherPatterns() {
 			ditherPattern.filename = filename;
 			ditherPattern.image = pattern;
 			ditherPattern.area = pattern.getWidth() * pattern.getHeight();
-			ditherPatterns.push_back(ditherPattern);
+			
+			// Insert into appropriate group
+			insertPatternIntoGroups(ditherPattern);
 			ofLogNotice() << "Loaded dither pattern: " << filename;
 		} else {
 			ofLogError() << "Failed to load: " << filename;
 		}
 	}
 	
-	// Sort by image size (area)
-	std::sort(ditherPatterns.begin(), ditherPatterns.end(), [](const DitherPattern& a, const DitherPattern& b) {
-		return a.area < b.area;
-	});
+	int totalPatterns = 0;
+	for(const auto& group : patternGroups) {
+		totalPatterns += group.patterns.size();
+	}
 	
-	ofLogNotice() << "Loaded " << ditherPatterns.size() << " dither patterns (sorted by size)";
+	ofLogNotice() << "Loaded " << totalPatterns << " dither patterns in " << patternGroups.size() << " size groups";
 }
 
 void ofApp::addDitherPattern(const std::string& filename, const ofImage& image) {
@@ -248,24 +283,20 @@ void ofApp::addDitherPattern(const std::string& filename, const ofImage& image) 
 	newPattern.image = image;
 	newPattern.area = image.getWidth() * image.getHeight();
 	
-	// Add the new pattern
-	ditherPatterns.push_back(newPattern);
-	
-	// Re-sort by size
-	std::sort(ditherPatterns.begin(), ditherPatterns.end(), [](const DitherPattern& a, const DitherPattern& b) {
-		return a.area < b.area;
-	});
+	// Insert into appropriate group and get the final position
+	auto [groupIndex, patternIndex] = insertPatternIntoGroups(newPattern);
 	
 	// Switch to the new pattern
-	for(int i = 0; i < ditherPatterns.size(); i++) {
-		if(ditherPatterns[i].filename == filename) {
-			currentPatternIndex = i;
-			break;
-		}
+	currentGroupIndex = groupIndex;
+	currentPatternIndexInGroup = patternIndex;
+	
+	int totalPatterns = 0;
+	for(const auto& group : patternGroups) {
+		totalPatterns += group.patterns.size();
 	}
 	
 	ofLogNotice() << "Added new dither pattern: " << filename << " (" << image.getWidth() << "x" << image.getHeight() << ")";
-	ofLogNotice() << "Total patterns: " << ditherPatterns.size();
+	ofLogNotice() << "Total patterns: " << totalPatterns << " in " << patternGroups.size() << " groups";
 }
 
 void ofApp::drawInfo() {
@@ -274,25 +305,50 @@ void ofApp::drawInfo() {
 	infoLines.push_back("Dither Pattern Tester");
 	infoLines.push_back("");
 	
-	if(!ditherPatterns.empty()) {
-		infoLines.push_back("Pattern: " + ofToString(currentPatternIndex + 1) + "/" + ofToString(ditherPatterns.size()));
+	if(hasPatterns()) {
+		// Current pattern info
+		int totalPatterns = 0;
+		for(const auto& group : patternGroups) {
+			totalPatterns += group.patterns.size();
+		}
 		
-		int w = ditherPatterns[currentPatternIndex].image.getWidth();
-		int h = ditherPatterns[currentPatternIndex].image.getHeight();
+		int currentPatternGlobal = 1;
+		for(int g = 0; g < currentGroupIndex; g++) {
+			currentPatternGlobal += patternGroups[g].patterns.size();
+		}
+		currentPatternGlobal += currentPatternIndexInGroup;
+		
+		infoLines.push_back("Pattern: " + ofToString(currentPatternGlobal + 1) + "/" + ofToString(totalPatterns));
+		
+		DitherPattern& current = getCurrentPattern();
+		int w = current.image.getWidth();
+		int h = current.image.getHeight();
 		infoLines.push_back("Size: " + ofToString(w) + "x" + ofToString(h));
+		infoLines.push_back("File: " + current.filename);
 		
 		infoLines.push_back("");
-		infoLines.push_back("Available Patterns:");
+		infoLines.push_back("Pattern Groups (" + ofToString(patternGroups.size()) + " sizes):");
 		
-		// List all pattern files with star for current one
-		for(int i = 0; i < ditherPatterns.size(); i++) {
-			std::string marker = (i == currentPatternIndex) ? " * " : "   ";
-			infoLines.push_back(marker + ditherPatterns[i].filename);
+		// List all groups in tree format
+		for(int g = 0; g < patternGroups.size(); g++) {
+			const auto& group = patternGroups[g];
+			std::string groupMarker = (g == currentGroupIndex) ? "+" : "-";
+			std::string groupLine = groupMarker + " " + ofToString(group.width) + "x" + ofToString(group.height) + " (" + ofToString(group.patterns.size()) + ")";
+			infoLines.push_back(groupLine);
+			
+			// Show patterns in current group
+			if(g == currentGroupIndex) {
+				for(int p = 0; p < group.patterns.size(); p++) {
+					std::string patternMarker = (p == currentPatternIndexInGroup) ? "  * " : "    ";
+					infoLines.push_back(patternMarker + group.patterns[p].filename);
+				}
+			}
 		}
 		
 	} else {
 		infoLines.push_back("No patterns found in patterns/");
 	}
+	
 	infoLines.push_back("");
 	infoLines.push_back("Dithering Mode: " + std::string(gpuDithering ? "GPU" : "CPU"));
 	infoLines.push_back("Pattern Preview: " + std::string(showPatternPreview ? "ON" : "OFF"));
@@ -301,6 +357,7 @@ void ofApp::drawInfo() {
 	infoLines.push_back("");
 	infoLines.push_back("Controls:");
 	infoLines.push_back("up/down - Change pattern");
+	infoLines.push_back("shift+up/down - Change group");
 	infoLines.push_back("SPACE - Pause/play animation");
 	infoLines.push_back("V - Toggle help");
 	infoLines.push_back("P - Toggle pattern preview");
@@ -312,7 +369,7 @@ void ofApp::drawInfo() {
 	int lineHeight = 14;
 	int padding = 20;
 	int rectHeight = infoLines.size() * lineHeight + padding;
-	int rectWidth = 300; // Increased width for longer filenames
+	int rectWidth = 350; // Increased width for tree structure
 	
 	// Semi-transparent background
 	ofSetColor(0, 0, 0, 180);
@@ -326,7 +383,7 @@ void ofApp::drawInfo() {
 }
 
 void ofApp::drawPatternPreview() {
-	if(ditherPatterns.empty()) return;
+	if(!hasPatterns()) return;
 	
 	// Position in top-right corner
 	int x = ofGetWidth() - PREVIEW_SIZE - PREVIEW_MARGIN;
@@ -340,8 +397,8 @@ void ofApp::drawPatternPreview() {
 	ofSetColor(255);  // Full white tint
 	
 	// Set texture filtering to nearest neighbor for crisp pixels
-	ditherPatterns[currentPatternIndex].image.getTexture().setTextureMinMagFilter(GL_NEAREST, GL_NEAREST);
-	ditherPatterns[currentPatternIndex].image.draw(x, y, PREVIEW_SIZE, PREVIEW_SIZE);
+	getCurrentPattern().image.getTexture().setTextureMinMagFilter(GL_NEAREST, GL_NEAREST);
+	getCurrentPattern().image.draw(x, y, PREVIEW_SIZE, PREVIEW_SIZE);
 	
 	// Draw border
 	ofSetColor(120);
@@ -351,7 +408,7 @@ void ofApp::drawPatternPreview() {
 }
 
 void ofApp::exportAllPatterns() {
-	if(ditherPatterns.empty()) {
+	if(!hasPatterns()) {
 		ofLogWarning() << "No dither patterns to export with";
 		return;
 	}
@@ -362,28 +419,35 @@ void ofApp::exportAllPatterns() {
 	char timeStr[32];
 	std::strftime(timeStr, sizeof(timeStr), "%Y-%m-%d_%H-%M-%S", tmPtr);
 	
-	ofLogNotice() << "Exporting current noise with all " << ditherPatterns.size() << " dither patterns...";
-	
-	// Export with each pattern
-	for(int i = 0; i < ditherPatterns.size(); i++) {
-		// Start with clean noise pixels
-		ofPixels exportPixels = basePixels;
-		
-		// Apply current pattern
-		applyDitherToPixels(exportPixels, ditherPatterns[i]);
-		
-		// Save this dithered result
-		ofImage exportImg;
-		exportImg.setFromPixels(exportPixels);
-		
-		// Create filename: timestamp_patternname.png
-		std::string filename = std::string(timeStr) + "_" + ditherPatterns[i].filename;
-		exportImg.save(filename);
-		
-		ofLogNotice() << "Exported: " << filename;
+	int totalPatterns = 0;
+	for(const auto& group : patternGroups) {
+		totalPatterns += group.patterns.size();
 	}
 	
-	ofLogNotice() << "Export complete! " << ditherPatterns.size() << " images saved.";
+	ofLogNotice() << "Exporting current noise with all " << totalPatterns << " dither patterns...";
+	
+	// Export with each pattern
+	for(const auto& group : patternGroups) {
+		for(const auto& pattern : group.patterns) {
+			// Start with clean noise pixels
+			ofPixels exportPixels = basePixels;
+			
+			// Apply current pattern
+			applyDitherToPixels(exportPixels, pattern);
+			
+			// Save this dithered result
+			ofImage exportImg;
+			exportImg.setFromPixels(exportPixels);
+			
+			// Create filename: timestamp_patternname.png
+			std::string filename = std::string(timeStr) + "_" + pattern.filename;
+			exportImg.save(filename);
+			
+			ofLogNotice() << "Exported: " << filename;
+		}
+	}
+	
+	ofLogNotice() << "Export complete! " << totalPatterns << " images saved.";
 }
 
 void ofApp::applyDitherToPixels(ofPixels& targetPixels, const DitherPattern& pattern) {
@@ -412,4 +476,70 @@ void ofApp::applyDitherToPixels(ofPixels& targetPixels, const DitherPattern& pat
 			}
 		}
 	}
+}
+
+std::pair<int, int> ofApp::insertPatternIntoGroups(const DitherPattern& pattern) {
+	int width = pattern.image.getWidth();
+	int height = pattern.image.getHeight();
+	
+	// Find existing group or create new one
+	bool foundGroup = false;
+	int groupIndex = -1;
+	
+	for(int i = 0; i < patternGroups.size(); i++) {
+		if(patternGroups[i].width == width && patternGroups[i].height == height) {
+			patternGroups[i].patterns.push_back(pattern);
+			// Sort patterns within group by filename
+			std::sort(patternGroups[i].patterns.begin(), patternGroups[i].patterns.end(), 
+				[](const DitherPattern& a, const DitherPattern& b) {
+					return a.filename < b.filename;
+				});
+			groupIndex = i;
+			foundGroup = true;
+			break;
+		}
+	}
+	
+	if(!foundGroup) {
+		// Create new group
+		PatternGroup newGroup;
+		newGroup.width = width;
+		newGroup.height = height;
+		newGroup.patterns.push_back(pattern);
+		patternGroups.push_back(newGroup);
+		
+		// Re-sort groups by area
+		std::sort(patternGroups.begin(), patternGroups.end(), [](const PatternGroup& a, const PatternGroup& b) {
+			return (a.width * a.height) < (b.width * b.height);
+		});
+		
+		// Find where the new group ended up
+		for(int i = 0; i < patternGroups.size(); i++) {
+			if(patternGroups[i].width == width && patternGroups[i].height == height) {
+				groupIndex = i;
+				break;
+			}
+		}
+	}
+	
+	// Find the pattern index within the group
+	int patternIndex = -1;
+	if(groupIndex >= 0) {
+		for(int i = 0; i < patternGroups[groupIndex].patterns.size(); i++) {
+			if(patternGroups[groupIndex].patterns[i].filename == pattern.filename) {
+				patternIndex = i;
+				break;
+			}
+		}
+	}
+	
+	return {groupIndex, patternIndex};
+}
+
+DitherPattern& ofApp::getCurrentPattern() {
+	return patternGroups[currentGroupIndex].patterns[currentPatternIndexInGroup];
+}
+
+bool ofApp::hasPatterns() const {
+	return !patternGroups.empty();
 }
